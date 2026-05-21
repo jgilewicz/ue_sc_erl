@@ -277,16 +277,15 @@ def SC_ERL(
                             }
                         )
 
-                    logger.log(
-                        metrics,
-                        step=generation,
-                    )
-
-                    logger.log(
+                    metrics.update(
                         {
                             "surrogate_mode": surrogate_mode.value,
                             "omega": omega,
                             "k": k,
-                        },
-                        step=total_steps,
+                        }
+                    )
+
+                    logger.log(
+                        metrics,
+                        step=generation,
                     )
