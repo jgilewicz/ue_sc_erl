@@ -3,17 +3,26 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-import torch
-import numpy as np
 import gymnasium as gym
-from omegaconf import DictConfig, OmegaConf
+import gymnasium_robotics
 import hydra
+import numpy as np
+import torch
+from omegaconf import DictConfig, OmegaConf
 
+from common.surrogate_controller import SurrogateMode
 from common.wandb_logger import WandbLogger
 from ERL.erl import ERL
-from TD3.td3 import TD3
+from PPO.ppo import PPO
 from SC_ERL.sc_erl import SC_ERL
-from common.surrogate_controller import SurrogateMode
+from TD3.td3 import TD3
+
+
+def make_env(env_id: str) -> gym.Env:
+    env = gym.make(env_id)
+    if isinstance(env.observation_space, gym.spaces.Dict):
+        env = gym.wrappers.FlattenObservation(env)
+    return env
 
 
 @hydra.main(
@@ -43,13 +52,15 @@ def main(cfg: DictConfig) -> None:
             config=OmegaConf.to_container(cfg, resolve=True),
         )
 
+    gym.register_envs(gymnasium_robotics)
+
     if cfg.name == "erl":
         ERL(
             population_size=cfg.population_size,
             buffer_size=cfg.buffer_size,
             rng=np.random.default_rng(seed=cfg.seed),
-            env=gym.make(cfg.env.id),
-            eval_env=gym.make(cfg.eval_env.id),
+            env=make_env(cfg.env.id),
+            eval_env=make_env(cfg.eval_env.id),
             n_steps=cfg.n_steps,
             batch_size=cfg.batch_size,
             device=device,
@@ -73,8 +84,8 @@ def main(cfg: DictConfig) -> None:
         TD3(
             buffer_size=cfg.buffer_size,
             rng=np.random.default_rng(seed=cfg.seed),
-            env=gym.make(cfg.env.id),
-            eval_env=gym.make(cfg.eval_env.id),
+            env=make_env(cfg.env.id),
+            eval_env=make_env(cfg.eval_env.id),
             n_steps=cfg.n_steps,
             batch_size=cfg.batch_size,
             device=device,
@@ -98,8 +109,8 @@ def main(cfg: DictConfig) -> None:
             population_size=cfg.population_size,
             buffer_size=cfg.buffer_size,
             rng=np.random.default_rng(seed=cfg.seed),
-            env=gym.make(cfg.env.id),
-            eval_env=gym.make(cfg.eval_env.id),
+            env=make_env(cfg.env.id),
+            eval_env=make_env(cfg.eval_env.id),
             n_steps=cfg.n_steps,
             batch_size=cfg.batch_size,
             device=device,
@@ -118,6 +129,28 @@ def main(cfg: DictConfig) -> None:
             omega=cfg.surrogate.omega,
             surrogate_mode=SurrogateMode.to_mode(cfg.surrogate.mode),
             k=cfg.surrogate.k,
+            ensemble_size=cfg.surrogate.k,
+            logger=logger,
+            debug=cfg.debug,
+        )
+    elif cfg.name == "ppo":
+        PPO(
+            env=make_env(cfg.env.id),
+            eval_env=make_env(cfg.eval_env.id),
+            n_steps=cfg.n_steps,
+            rollout_steps=cfg.buffer_size,
+            batch_size=cfg.batch_size,
+            ppo_epochs=cfg.rl.ppo_epochs,
+            device=device,
+            hidden_dim=cfg.network.hidden_dim,
+            gamma=cfg.rl.gamma,
+            gae_lambda=cfg.rl.gae_lambda,
+            clip_param=cfg.rl.clip_param,
+            entropy_coef=cfg.rl.entropy_coef,
+            actor_lr=cfg.rl.actor_lr,
+            critic_lr=cfg.rl.critic_lr,
+            evaluate_episodes=cfg.evaluation.evaluate_episodes,
+            eval_interval=cfg.evaluation.eval_interval,
             logger=logger,
             debug=cfg.debug,
         )

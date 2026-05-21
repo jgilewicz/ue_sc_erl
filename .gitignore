@@ -1,46 +1,73 @@
-# Python bytecode and caches
+# Environments
+.env
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Hydra outputs
+outputs/
+.hydra/
+
+# Weights & Biases
+wandb/
+*.wandb
+
+# Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.pyre/
-.hypothesis/
-.coverage
-.coverage.*
-htmlcov/
-
-# Build and packaging artifacts
+*.so
+.Python
 build/
+develop-eggs/
 dist/
-site/
-wheels/
-*.egg
-*.egg-info/
+downloads/
+eggs/
 .eggs/
-pip-wheel-metadata/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Virtual environments and local Python tooling
-.venv/
-venv/
-env/
-ENV/
-.python-version
-
-# Experiment outputs and logs
-outputs/
-.hydra/
-wandb/
-logs/
-*.log
-
-# Environment and local secrets
+# Virtualenv
 .env
-.env.*
-!.env.example
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Editor and OS files
-.DS_Store
-.idea/
+# VS Code / IDEs
 .vscode/
+.idea/
+*.swp
+*.swo
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Testing & Coverage
+.coverage
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+pytestdebug.log
+
+# Project specific / Local tasks
+.task/
+task.lock

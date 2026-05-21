@@ -1,20 +1,22 @@
-import torch
-import numpy as np
-import gymnasium as gym
 from collections import deque
 
+import gymnasium as gym
+import numpy as np
+import torch
+
+from common.ensemble_module import EnsembleModule
+from common.evolution_module import EvolutionModule
 from common.modules import Actor, Critic
 from common.reply_buffer import Buffer
-from common.evolution_module import EvolutionModule
 from common.surrogate_controller import SurrogateController, SurrogateMode
-from common.wandb_logger import WandbLogger
 from common.utils import (
-    train_critic_step,
-    train_actor_step,
-    warmup,
     evaluate_policy,
     print_sc_erl_debug_summary,
+    train_actor_step,
+    train_critic_step,
+    warmup,
 )
+from common.wandb_logger import WandbLogger
 
 
 def SC_ERL(
@@ -42,6 +44,7 @@ def SC_ERL(
     k: int = 5,
     logger: WandbLogger | None = None,
     surrogate_mode: SurrogateMode = SurrogateMode.RANDOM,
+    ensemble_size: int = 5,
     debug: bool = False,
 ) -> None:
 
@@ -90,6 +93,21 @@ def SC_ERL(
     ).to(device)
 
     target_critic.load_state_dict(critic.state_dict())
+
+    if surrogate_mode == SurrogateMode.ENSEMBLE:
+        critic = EnsembleModule(
+            ensemble_size=ensemble_size,
+            critic=critic,
+            rng=rng,
+        ).to(device)
+
+        target_critic = EnsembleModule(
+            ensemble_size=ensemble_size,
+            critic=target_critic,
+            rng=rng,
+        ).to(device)
+
+        target_critic.load_state_dict(critic.state_dict())
 
     replay_buffer = Buffer(
         capacity=buffer_size,
@@ -212,17 +230,20 @@ def SC_ERL(
                         critic_loss=critic_loss,
                         uncertainty_mean=(
                             surrogate_controller.last_uncertainty_mean
-                            if surrogate_mode == SurrogateMode.DROPOUT
+                            if surrogate_mode
+                            in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
                             else None
                         ),
                         uncertainty_max=(
                             surrogate_controller.last_uncertainty_max
-                            if surrogate_mode == SurrogateMode.DROPOUT
+                            if surrogate_mode
+                            in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
                             else None
                         ),
                         uncertainty_threshold=(
                             surrogate_controller.last_uncertainty_threshold
-                            if surrogate_mode == SurrogateMode.DROPOUT
+                            if surrogate_mode
+                            in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
                             else None
                         ),
                         surrogate_mode=surrogate_mode.name.lower(),
@@ -241,7 +262,10 @@ def SC_ERL(
                         "critic_loss": critic_loss,
                         "surrogate_used": surrogate_controller.mode == "surrogate",
                     }
-                    if surrogate_mode == SurrogateMode.DROPOUT:
+                    if surrogate_mode in (
+                        SurrogateMode.DROPOUT,
+                        SurrogateMode.ENSEMBLE,
+                    ):
                         metrics.update(
                             {
                                 "uncertainty_mean": surrogate_controller.last_uncertainty_mean,

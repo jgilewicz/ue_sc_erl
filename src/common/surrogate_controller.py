@@ -143,7 +143,45 @@ class SurrogateController:
             self.last_fitness = fitnesses
 
         elif self.surrogate_mode == SurrogateMode.ENSEMBLE:
-            pass
+            k = min(self.k, len(self.replay_buffer))
+            batch = self.replay_buffer.sample_latest(batch_size=k)
+            obs = batch["state"].to(self.device)
+
+            self.critic.eval()
+            surrogate_fitnesses = []
+            uncertainties = []
+
+            for policy in population:
+                policy.eval()
+                with torch.no_grad():
+                    actions = policy(obs)
+                    mean_q, std_q = self.critic(obs, actions)
+                
+                surrogate_fitnesses.append(mean_q.mean().item())
+                uncertainties.append(std_q.mean().item())
+
+            self.last_uncertainty = uncertainties
+
+            use_real, mean_uncertainty, max_uncertainty, threshold = (
+                self._real_or_surrogate_from_uncertainty(self.last_uncertainty)
+            )
+            self.last_uncertainty_mean = mean_uncertainty
+            self.last_uncertainty_max = max_uncertainty
+            self.last_uncertainty_threshold = threshold
+
+            if use_real:
+                fitnesses, steps = self._real_evaluation(
+                    population, env, evaluate_episodes
+                )
+                surrogate = False
+                self.mode = "real"
+            else:
+                fitnesses = surrogate_fitnesses
+                steps = 0
+                surrogate = True
+                self.mode = "surrogate"
+
+            self.last_fitness = fitnesses
 
         population = self.evolution_module.evolve(
             population=population,

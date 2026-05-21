@@ -76,7 +76,7 @@ def print_sc_erl_debug_summary(
     )
     print(f"  Evolution       steps: {format_steps(evo_steps)}")
     if (
-        surrogate_mode == "dropout"
+        surrogate_mode in ("dropout", "ensemble")
         and uncertainty_mean is not None
         and uncertainty_max is not None
         and uncertainty_threshold is not None
@@ -124,11 +124,18 @@ def train_critic_step(
 
     with torch.no_grad():
         next_action = target_actor(batch["next_state"])
-        next_q = target_critic(batch["next_state"], next_action)
+        if hasattr(target_critic, "compute_loss"):
+            next_q_mean, _ = target_critic(batch["next_state"], next_action)
+            next_q = next_q_mean
+        else:
+            next_q = target_critic(batch["next_state"], next_action)
 
         target_q = batch["reward"] + (1.0 - batch["done"]) * gamma * next_q
 
-    critic_loss = torch.nn.MSELoss()(critic(batch["state"], batch["action"]), target_q)
+    if hasattr(critic, "compute_loss"):
+        critic_loss = critic.compute_loss(batch["state"], batch["action"], target_q)
+    else:
+        critic_loss = torch.nn.MSELoss()(critic(batch["state"], batch["action"]), target_q)
 
     critic_optimizer.zero_grad()
     critic_loss.backward()
@@ -150,7 +157,11 @@ def train_actor_step(
 ) -> float:
     batch = replay_buffer.sample(batch_size=batch_size)
 
-    actor_loss = -critic(batch["state"], actor(batch["state"])).mean()
+    q_values = critic(batch["state"], actor(batch["state"]))
+    if isinstance(q_values, tuple):
+        q_values = q_values[0] # use mean_q for ensemble
+
+    actor_loss = -q_values.mean()
 
     actor_optimizer.zero_grad()
     actor_loss.backward()

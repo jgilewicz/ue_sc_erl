@@ -6,6 +6,7 @@ The repository currently includes implementations of:
 - `TD3`
 - `ERL`
 - `SC_ERL`
+- `PPO`
 
 ## Project Goal
 
@@ -47,6 +48,7 @@ Run a specific algorithm:
 make run ALGO=td3
 make run ALGO=erl
 make run ALGO=sc_erl
+make run ALGO=ppo
 ```
 
 Run with custom Hydra arguments:
@@ -72,6 +74,7 @@ Algorithm-specific configurations are stored in:
 - `configs/algorithm/td3.yaml`
 - `configs/algorithm/erl.yaml`
 - `configs/algorithm/sc_erl.yaml`
+- `configs/algorithm/ppo.yaml`
 
 Example configuration parameters:
 
@@ -102,7 +105,8 @@ If you use a `.env` file, make sure `WANDB_API_KEY` is set.
 │   ├── common/          # shared modules and utilities
 │   ├── TD3/             # TD3 implementation
 │   ├── ERL/             # ERL implementation
-│   └── SC_ERL/          # SC-ERL implementation
+│   ├── SC_ERL/          # SC-ERL implementation
+│   └── PPO/             # PPO implementation
 ├── entry_point.py       # main entry point
 ├── pyproject.toml       # project metadata and dependencies
 └── Makefile             # helper commands

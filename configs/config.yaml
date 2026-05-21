@@ -4,16 +4,16 @@ defaults:
 
 seed: 42
 device: auto
-debug: true
+debug: false
 
 env:
-  id: Pendulum-v1
+  id: FetchPickAndPlaceDense-v4
 eval_env:
-  id: Pendulum-v1
+  id: FetchPickAndPlaceDense-v4
 
 wandb:
-  enabled: false
-  project: evo_rl
-  entity: evo_rl
+  enabled: true
+  project: evo_rl_surrogate_uncertainty_prediction
+  entity: w1ndrunn3rr-wroc-aw-univeristy-of-science-and-technology
   name: null
   tags: []
