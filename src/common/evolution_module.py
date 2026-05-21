@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import copy
+import random
 
 from .utils import get_flat_params, set_flat_params
 
@@ -73,8 +74,15 @@ class EvolutionModule:
             [copy.deepcopy(elite).to(self.device)] if elite is not None else []
         )
 
+        if surrogate_evaluation and self.best_actor is not None:
+            elites.append(self.best_actor)
+
         while len(new_population) < len(population):
-            parent_a, parent_b = np.random.choice(elites, size=2)
+            if len(elites) >= 2:
+                parent_a, parent_b = random.sample(elites, 2)
+            else:
+                parent_a, parent_b = elites[0], elites[0]
+                
             parent_a.to(self.device)
             parent_b.to(self.device)
 
