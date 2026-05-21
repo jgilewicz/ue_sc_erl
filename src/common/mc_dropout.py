@@ -50,10 +50,12 @@ class MCDropout:
                     q_samples.append(q)
 
             q_samples = torch.stack(q_samples, dim=0)
-            fitness_per_model = q_samples.mean(dim=1)
 
-            fitness = fitness_per_model.mean().item()
-            uncertainty = fitness_per_model.std().item()
+            per_sample_mean = q_samples.mean(dim=0)
+            per_sample_std = q_samples.std(dim=0)
+
+            fitness = per_sample_mean.mean().item()
+            uncertainty = per_sample_std.mean().item()
             return fitness, uncertainty
         finally:
             critic.train(critic_was_training)

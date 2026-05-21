@@ -37,6 +37,7 @@ class SurrogateController:
         omega: float = 0.5,
         rng: np.random.Generator | None = None,
         k: int = 5,
+        history_window: int = 50,
     ):
         self.evolution_module = evolution_module
         self.critic = critic
@@ -49,7 +50,7 @@ class SurrogateController:
         self.last_fitness = []
         self.last_uncertainty = []
         self.uncertainty_history = []
-        self.uncertainty_history_window = max(1, k)
+        self.uncertainty_history_window = max(1, history_window)
         self.uncertainty_percentile = 70.0
         self.last_uncertainty_mean = 0.0
         self.last_uncertainty_max = 0.0
@@ -121,24 +122,28 @@ class SurrogateController:
                     device=self.device,
                 )
             )
-            use_real, mean_uncertainty, max_uncertainty, threshold = (
+            _, mean_uncertainty, max_uncertainty, threshold = (
                 self._real_or_surrogate_from_uncertainty(self.last_uncertainty)
             )
             self.last_uncertainty_mean = mean_uncertainty
             self.last_uncertainty_max = max_uncertainty
             self.last_uncertainty_threshold = threshold
 
-            if use_real:
-                fitnesses, steps = self._real_evaluation(
-                    population, env, evaluate_episodes
-                )
-                surrogate = False
-                self.mode = "real"
-            else:
-                fitnesses = surrogate_fitnesses
-                steps = 0
-                surrogate = True
-                self.mode = "surrogate"
+            fitnesses = []
+            steps = 0
+            any_surrogate = False
+
+            for i, policy in enumerate(population):
+                if self.last_uncertainty[i] > threshold:
+                    fit, s = self._real_evaluation([policy], env, evaluate_episodes)
+                    fitnesses.append(fit[0])
+                    steps += s
+                else:
+                    fitnesses.append(surrogate_fitnesses[i])
+                    any_surrogate = True
+
+            surrogate = any_surrogate
+            self.mode = "mixed" if any_surrogate and steps > 0 else ("surrogate" if any_surrogate else "real")
 
             self.last_fitness = fitnesses
 
@@ -162,24 +167,28 @@ class SurrogateController:
 
             self.last_uncertainty = uncertainties
 
-            use_real, mean_uncertainty, max_uncertainty, threshold = (
+            _, mean_uncertainty, max_uncertainty, threshold = (
                 self._real_or_surrogate_from_uncertainty(self.last_uncertainty)
             )
             self.last_uncertainty_mean = mean_uncertainty
             self.last_uncertainty_max = max_uncertainty
             self.last_uncertainty_threshold = threshold
 
-            if use_real:
-                fitnesses, steps = self._real_evaluation(
-                    population, env, evaluate_episodes
-                )
-                surrogate = False
-                self.mode = "real"
-            else:
-                fitnesses = surrogate_fitnesses
-                steps = 0
-                surrogate = True
-                self.mode = "surrogate"
+            fitnesses = []
+            steps = 0
+            any_surrogate = False
+
+            for i, policy in enumerate(population):
+                if self.last_uncertainty[i] > threshold:
+                    fit, s = self._real_evaluation([policy], env, evaluate_episodes)
+                    fitnesses.append(fit[0])
+                    steps += s
+                else:
+                    fitnesses.append(surrogate_fitnesses[i])
+                    any_surrogate = True
+
+            surrogate = any_surrogate
+            self.mode = "mixed" if any_surrogate and steps > 0 else ("surrogate" if any_surrogate else "real")
 
             self.last_fitness = fitnesses
 
