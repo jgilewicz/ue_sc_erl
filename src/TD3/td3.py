@@ -97,6 +97,9 @@ def TD3(
         capacity=buffer_size,
         batch_size=batch_size,
         rng=rng,
+        state_dim=state_dim,
+        action_dim=action_dim,
+        device=device,
     )
 
     episode_rewards = deque(maxlen=100)

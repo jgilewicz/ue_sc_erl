@@ -39,6 +39,10 @@ def main(cfg: DictConfig) -> None:
         else cfg.device
     )
 
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+
     logger = None
     if cfg.wandb.enabled:
         run_name = cfg.wandb.name if cfg.wandb.name else cfg.name

@@ -92,6 +92,9 @@ def ERL(
         capacity=buffer_size,
         batch_size=batch_size,
         rng=rng,
+        state_dim=state_dim,
+        action_dim=action_dim,
+        device=device,
     )
 
     actor_optimizer = torch.optim.Adam(actor.parameters(), lr=actor_lr)
