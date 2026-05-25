@@ -17,68 +17,36 @@ tasks:
     cmds:
       - uv run python entry_point.py algorithm={{.ALGO}} {{.CLI_ARGS}}
 
-  run-fetch-matrix:
-    desc: "Runs the full experiment matrix for Fetch robots (4 environments x 5 seeds x algorithms)"
+  run-metaworld-matrix:
+    desc: "Runs the full experiment matrix for Metaworld robots (4 environments x 5 seeds x algorithms)"
     cmds:
       - |
-        for env in FetchReachDense-v4 FetchPushDense-v4 FetchSlideDense-v4 FetchPickAndPlaceDense-v4; do
+        for env in button-press-v2 door-open-v2 drawer-close-v2 window-open-v2; do
           for seed in 0 1 2 3 4; do
             echo "=== Running: ENVIRONMENT=$env | SEED=$seed ==="
-            uv run python entry_point.py algorithm=sc_erl surrogate.mode=random seed=$seed env.id=$env eval_env.id=$env wandb.enabled=true wandb.name="sc_erl_random_${env}_seed${seed}" wandb.tags="[Fetch,sc_erl,random]"
-            uv run python entry_point.py algorithm=sc_erl surrogate.mode=dropout seed=$seed env.id=$env eval_env.id=$env wandb.enabled=true wandb.name="sc_erl_dropout_${env}_seed${seed}" wandb.tags="[Fetch,sc_erl,dropout]"
-            uv run python entry_point.py algorithm=sc_erl surrogate.mode=ensemble seed=$seed env.id=$env eval_env.id=$env wandb.enabled=true wandb.name="sc_erl_ensemble_${env}_seed${seed}" wandb.tags="[Fetch,sc_erl,ensemble]"
-            uv run python entry_point.py algorithm=td3 seed=$seed env.id=$env eval_env.id=$env wandb.enabled=true wandb.name="td3_${env}_seed${seed}" wandb.tags="[Fetch,td3,baseline]"
-            uv run python entry_point.py algorithm=erl seed=$seed env.id=$env eval_env.id=$env wandb.enabled=true wandb.name="erl_${env}_seed${seed}" wandb.tags="[Fetch,erl,baseline]"
-            uv run python entry_point.py algorithm=ppo seed=$seed env.id=$env eval_env.id=$env wandb.enabled=true wandb.name="ppo_${env}_seed${seed}" wandb.tags="[Fetch,ppo,baseline]"
+            uv run python entry_point.py algorithm=sc_erl surrogate.mode=dropout seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name="sc_erl_dropout_${env}_seed${seed}" wandb.tags="[Metaworld,sc_erl,dropout]"
+            uv run python entry_point.py algorithm=sc_erl surrogate.mode=ensemble seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name="sc_erl_ensemble_${env}_seed${seed}" wandb.tags="[Metaworld,sc_erl,ensemble]"
+            uv run python entry_point.py algorithm=td3 seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name="td3_${env}_seed${seed}" wandb.tags="[Metaworld,td3,baseline]"
+            uv run python entry_point.py algorithm=erl seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name="erl_${env}_seed${seed}" wandb.tags="[Metaworld,erl,baseline]"
+            uv run python entry_point.py algorithm=ppo seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name="ppo_${env}_seed${seed}" wandb.tags="[Metaworld,ppo,baseline]"
+            uv run python entry_point.py algorithm=sc_erl surrogate.mode=random seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name="sc_erl_random_${env}_seed${seed}" wandb.tags="[Metaworld,sc_erl,random]"
           done
         done
 
-  run-fetch-parallel:
+  run-metaworld-parallel:
     desc: "Runs the experiment matrix in parallel (Warning: uses more CPU/VRAM)"
     cmds:
       - |
-        for env_info in FetchPushDense-v4:5000000 FetchPickAndPlaceDense-v4:10000000 FetchSlideDense-v4:20000000; do
-          env="${env_info%%:*}"
-          steps="${env_info##*:}"
+        for env in button-press-v2 door-open-v2 drawer-close-v2 window-open-v2; do
           for seed in 0 1 2 3 4; do
-            echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=random seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"sc_erl_random_${env}_seed${seed}\" wandb.tags=\"[Fetch,sc_erl,random]\""
-            echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=dropout seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"sc_erl_dropout_${env}_seed${seed}\" wandb.tags=\"[Fetch,sc_erl,dropout]\""
-            echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=ensemble seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"sc_erl_ensemble_${env}_seed${seed}\" wandb.tags=\"[Fetch,sc_erl,ensemble]\""
-            echo "uv run python entry_point.py algorithm=td3 seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"td3_${env}_seed${seed}\" wandb.tags=\"[Fetch,td3,baseline]\""
-            echo "uv run python entry_point.py algorithm=erl seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"erl_${env}_seed${seed}\" wandb.tags=\"[Fetch,erl,baseline]\""
-            echo "uv run python entry_point.py algorithm=ppo seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"ppo_${env}_seed${seed}\" wandb.tags=\"[Fetch,ppo,baseline]\""
+            echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=dropout seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name=\"sc_erl_dropout_${env}_seed${seed}\" wandb.tags=\"[Metaworld,sc_erl,dropout]\""
+            echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=ensemble seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name=\"sc_erl_ensemble_${env}_seed${seed}\" wandb.tags=\"[Metaworld,sc_erl,ensemble]\""
+            echo "uv run python entry_point.py algorithm=td3 seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name=\"td3_${env}_seed${seed}\" wandb.tags=\"[Metaworld,td3,baseline]\""
+            echo "uv run python entry_point.py algorithm=erl seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name=\"erl_${env}_seed${seed}\" wandb.tags=\"[Metaworld,erl,baseline]\""
+            echo "uv run python entry_point.py algorithm=ppo seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name=\"ppo_${env}_seed${seed}\" wandb.tags=\"[Metaworld,ppo,baseline]\""
+            echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=random seed=$seed env.id=$env eval_env.id=$env n_steps=2000000 wandb.enabled=true wandb.name=\"sc_erl_random_${env}_seed${seed}\" wandb.tags=\"[Metaworld,sc_erl,random]\""
           done
-        done | shuf | xargs -I {} -P 6 bash -c '{}'
-
-  run-vast-parallel-optimized:
-    desc: "Runs envs on 2 GPUs (2 jobs per GPU) with env-specific step counts"
-    cmds:
-      - |
-        gpu=0
-        for seed in 0 1 2 3 4; do
-          for env_info in FetchPushDense-v4:5000000 FetchPickAndPlaceDense-v4:10000000 FetchSlideDense-v4:20000000; do
-            env="${env_info%%:*}"
-            steps="${env_info##*:}"
-            
-            echo "CUDA_VISIBLE_DEVICES=$gpu uv run python entry_point.py algorithm=sc_erl surrogate.mode=random seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"sc_erl_random_${env}_seed${seed}\" wandb.tags=\"[Fetch,sc_erl,random]\""
-            gpu=$((1 - gpu))
-            
-            echo "CUDA_VISIBLE_DEVICES=$gpu uv run python entry_point.py algorithm=sc_erl surrogate.mode=dropout seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"sc_erl_dropout_${env}_seed${seed}\" wandb.tags=\"[Fetch,sc_erl,dropout]\""
-            gpu=$((1 - gpu))
-            
-            echo "CUDA_VISIBLE_DEVICES=$gpu uv run python entry_point.py algorithm=sc_erl surrogate.mode=ensemble seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"sc_erl_ensemble_${env}_seed${seed}\" wandb.tags=\"[Fetch,sc_erl,ensemble]\""
-            gpu=$((1 - gpu))
-            
-            echo "CUDA_VISIBLE_DEVICES=$gpu uv run python entry_point.py algorithm=td3 seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"td3_${env}_seed${seed}\" wandb.tags=\"[Fetch,td3,baseline]\""
-            gpu=$((1 - gpu))
-            
-            echo "CUDA_VISIBLE_DEVICES=$gpu uv run python entry_point.py algorithm=erl seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"erl_${env}_seed${seed}\" wandb.tags=\"[Fetch,erl,baseline]\""
-            gpu=$((1 - gpu))
-            
-            echo "CUDA_VISIBLE_DEVICES=$gpu uv run python entry_point.py algorithm=ppo seed=$seed env.id=$env eval_env.id=$env n_steps=$steps wandb.enabled=true wandb.name=\"ppo_${env}_seed${seed}\" wandb.tags=\"[Fetch,ppo,baseline]\""
-            gpu=$((1 - gpu))
-          done
-        done | xargs -I {} -P 4 bash -c '{}'
+        done | shuf | xargs -I {} -P 4 bash -c '{}'
 
   clean:
     desc: "Clean outputs and Hydra logs"

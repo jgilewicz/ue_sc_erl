@@ -19,7 +19,21 @@ from TD3.td3 import TD3
 
 
 def make_env(env_id: str) -> gym.Env:
-    env = gym.make(env_id)
+    if "button-press" in env_id or "door-open" in env_id or "drawer-close" in env_id or "window-open" in env_id:
+        import metaworld
+        # Convert -v2 to -v3-goal-observable for Farama's Metaworld
+        if env_id.endswith("-v2"):
+            env_id = env_id.replace("-v2", "-v3-goal-observable")
+        
+        if env_id in metaworld.ALL_V3_ENVIRONMENTS_GOAL_OBSERVABLE:
+            env_cls = metaworld.ALL_V3_ENVIRONMENTS_GOAL_OBSERVABLE[env_id]
+            env = env_cls()
+            env._freeze_rand_vec = False
+        else:
+            raise ValueError(f"Metaworld environment {env_id} not found.")
+    else:
+        env = gym.make(env_id)
+        
     if isinstance(env.observation_space, gym.spaces.Dict):
         env = gym.wrappers.FlattenObservation(env)
     return env
