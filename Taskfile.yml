@@ -63,7 +63,7 @@ tasks:
             echo "uv run python entry_point.py algorithm=erl seed=$seed env.id=$env eval_env.id=$env rl.total_steps=$steps wandb.enabled=true wandb.name=\"erl_${env}_seed${seed}\" wandb.tags=\"[Fetch,erl,baseline]\""
             echo "uv run python entry_point.py algorithm=ppo seed=$seed env.id=$env eval_env.id=$env rl.total_steps=$steps wandb.enabled=true wandb.name=\"ppo_${env}_seed${seed}\" wandb.tags=\"[Fetch,ppo,baseline]\""
           done
-        done | parallel -j 4 'CUDA_VISIBLE_DEVICES=$(({%} - 1)) {}'
+        done | shuf | parallel -j 4 'CUDA_VISIBLE_DEVICES=$(({%} - 1)) {}'
 
   clean:
     desc: "Clean outputs and Hydra logs"
