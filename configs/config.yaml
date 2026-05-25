@@ -14,6 +14,6 @@ eval_env:
 wandb:
   enabled: true
   project: evo_rl_surrogate_uncertainty_prediction
-  entity: w1ndrunn3rr-wroc-aw-univeristy-of-science-and-technology
+  entity: evo_rl
   name: null
   tags: []

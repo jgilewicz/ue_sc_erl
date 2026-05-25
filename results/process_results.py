@@ -167,10 +167,10 @@ def generate_sample_efficiency_plot(env_id, merged_data, out_path):
         y_metric = 'best_population_fitness' if is_evo else 'eval_reward'
         
         is_proposed = method in ['sc_erl_ensemble', 'sc_erl_dropout']
-        linewidth = 2.5 if is_proposed else 1.5
+        linewidth = 0.6 if is_proposed else 1.3
         line_alpha = 1.0 if is_proposed else 0.6
         linestyle = '-' if is_proposed else ':'
-        fill_alpha = 0.15 if is_proposed else 0.08
+        fill_alpha = 0.12 if is_proposed else 0.05
         
         interpolated_ys = []
         
@@ -247,7 +247,7 @@ def generate_surrogate_analysis_plot(env_id, merged_data, out_path):
             required = ['generation', 'uncertainty_mean', 'uncertainty_max', 'uncertainty_threshold', 'avg_population_fitness']
             if not all(col in df.columns for col in required):
                 continue
-            
+                
             temp_df = df[required].copy()
             # Drop rows with NaN in key plotting metrics
             temp_df = temp_df.dropna(subset=['generation', 'uncertainty_mean'])
@@ -300,13 +300,7 @@ def generate_surrogate_analysis_plot(env_id, merged_data, out_path):
         ax.tick_params(axis='y', labelcolor=color)
         
         # Solid bold line for the mean uncertainty
-        line_mean, = ax.plot(gen_grid, avg_mean_u_smooth, color=color, linewidth=2.5, label="Uncertainty Mean")
-        
-        # Dashed line for the threshold
-        line_thresh, = ax.plot(gen_grid, avg_thresh_u_smooth, color=color, linestyle="--", linewidth=1.5, label="Uncertainty Threshold")
-        
-        # Shaded area only above the mean (between mean and max) to keep it clean and neat
-        shade_max = ax.fill_between(gen_grid, avg_mean_u_smooth, avg_max_u_smooth, color=color, alpha=0.10, label="Uncertainty Max")
+        line_mean, = ax.plot(gen_grid, avg_mean_u_smooth, color=color, linewidth=1.0, label="Uncertainty Mean")
         
         # Right Y Axis: Average Population Fitness (orange)
         ax2 = ax.twinx()
@@ -314,10 +308,10 @@ def generate_surrogate_analysis_plot(env_id, merged_data, out_path):
         ax2.tick_params(axis='y', labelcolor="#de8f05")
         ax2.grid(False)
         
-        line_fit, = ax2.plot(gen_grid, avg_fit_smooth, color="#de8f05", linewidth=2.0, linestyle="-.", label="Avg Pop Fitness")
+        line_fit, = ax2.plot(gen_grid, avg_fit_smooth, color="#de8f05", linewidth=0.8, linestyle="-.", label="Avg Pop Fitness")
         
         # Combine legends
-        lines = [line_mean, line_thresh, line_fit]
+        lines = [line_mean, line_fit]
         labels = [l.get_label() for l in lines]
         ax.legend(lines, labels, loc='lower left', frameon=True, facecolor='white', framealpha=0.9, edgecolor='#f2f2f2')
         
@@ -392,8 +386,14 @@ def generate_summary_table(env_id, base_dir="results"):
         
     csv_table = pd.DataFrame(csv_rows)
     
-    csv_out = os.path.join(base_dir, f"{env_id}_summary_table.csv")
-    csv_table.to_csv(csv_out, index=False)
+    latex_out = os.path.join(base_dir, f"{env_id}_summary_table.tex")
+    with open(latex_out, 'w') as f:
+        f.write(csv_table.to_latex(
+            index=False, 
+            column_format='lcccc', 
+            caption=f"Evaluation rewards and best population fitness across different methods on {env_id}.", 
+            label=f"tab:summary_{env_id}"
+        ))
 
 def generate_critic_correlation_plot(env_id, base_dir="results"):
     """
@@ -461,7 +461,7 @@ def generate_critic_correlation_plot(env_id, base_dir="results"):
         # Fit linear regression trendline
         slope, intercept = np.polyfit(x, y, 1)
         x_grid = np.linspace(min(x), max(x), 100)
-        ax.plot(x_grid, slope * x_grid + intercept, color='#333333', linestyle='--', linewidth=1.5, label='Trendline')
+        ax.plot(x_grid, slope * x_grid + intercept, color='#333333', linestyle='--', linewidth=1.0, label='Trendline')
         
         ax.set_title(f"{label}\n(Pearson r = {p_corr:.3f})", fontsize=11, pad=10, fontweight='bold')
         ax.set_xlabel("Critic TD Loss", labelpad=8)
@@ -476,10 +476,16 @@ def generate_critic_correlation_plot(env_id, base_dir="results"):
     plt.savefig(out_path, dpi=300)
     plt.close()
     
-    # Save correlation table as CSV
+    # Save correlation table as LaTeX for publication
     corr_df = pd.DataFrame(correlations)
-    csv_out = os.path.join(base_dir, f"{env_id}_critic_correlation.csv")
-    corr_df.to_csv(csv_out, index=False)
+    latex_out = os.path.join(base_dir, f"{env_id}_critic_correlation.tex")
+    with open(latex_out, 'w') as f:
+        f.write(corr_df.to_latex(
+            index=False, 
+            column_format='lccc', 
+            caption=f"Correlation analysis between Critic TD Loss and Critic Epistemic Uncertainty on {env_id}.", 
+            label=f"tab:critic_corr_{env_id}"
+        ))
 
 def main():
     base_dir = "results"

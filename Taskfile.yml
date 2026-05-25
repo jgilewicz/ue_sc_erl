@@ -46,9 +46,28 @@ tasks:
             commands+=("uv run python entry_point.py algorithm=td3 seed=$seed env.id=$env eval_env.id=$env wandb.enabled=true wandb.name=\"td3_${env}_seed${seed}\" wandb.tags=\"[Fetch,td3,baseline]\"")
             commands+=("uv run python entry_point.py algorithm=erl seed=$seed env.id=$env eval_env.id=$env wandb.enabled=true wandb.name=\"erl_${env}_seed${seed}\" wandb.tags=\"[Fetch,erl,baseline]\"")
             commands+=("uv run python entry_point.py algorithm=ppo seed=$seed env.id=$env eval_env.id=$env wandb.enabled=true wandb.name=\"ppo_${env}_seed${seed}\" wandb.tags=\"[Fetch,ppo,baseline]\"")
+          done
         done
         
         printf "%s\n" "${commands[@]}" | xargs -I {} -P 3 bash -c '{}'
+
+  run-vast-parallel:
+    desc: "Runs envs for 4 GPUs for 5M steps ()"
+    cmds:
+      - |
+        commands=()
+        for env in FetchReachDense-v4 FetchPushDense-v4; do
+          for seed in 0 1 2 3 4; do
+            commands+=("uv run python entry_point.py algorithm=sc_erl surrogate.mode=random seed=$seed env.id=$env eval_env.id=$env rl.total_steps=5000000 wandb.enabled=true wandb.name=\"sc_erl_random_${env}_seed${seed}\" wandb.tags=\"[Fetch,sc_erl,random]\"")
+            commands+=("uv run python entry_point.py algorithm=sc_erl surrogate.mode=dropout seed=$seed env.id=$env eval_env.id=$env rl.total_steps=5000000 wandb.enabled=true wandb.name=\"sc_erl_dropout_${env}_seed${seed}\" wandb.tags=\"[Fetch,sc_erl,dropout]\"")
+            commands+=("uv run python entry_point.py algorithm=sc_erl surrogate.mode=ensemble seed=$seed env.id=$env eval_env.id=$env rl.total_steps=5000000 wandb.enabled=true wandb.name=\"sc_erl_ensemble_${env}_seed${seed}\" wandb.tags=\"[Fetch,sc_erl,ensemble]\"")
+            commands+=("uv run python entry_point.py algorithm=td3 seed=$seed env.id=$env eval_env.id=$env rl.total_steps=5000000 wandb.enabled=true wandb.name=\"td3_${env}_seed${seed}\" wandb.tags=\"[Fetch,td3,baseline]\"")
+            commands+=("uv run python entry_point.py algorithm=erl seed=$seed env.id=$env eval_env.id=$env rl.total_steps=5000000 wandb.enabled=true wandb.name=\"erl_${env}_seed${seed}\" wandb.tags=\"[Fetch,erl,baseline]\"")
+            commands+=("uv run python entry_point.py algorithm=ppo seed=$seed env.id=$env eval_env.id=$env rl.total_steps=5000000 wandb.enabled=true wandb.name=\"ppo_${env}_seed${seed}\" wandb.tags=\"[Fetch,ppo,baseline]\"")
+          done
+        done
+        
+        printf "%s\n" "${commands[@]}" | parallel -j 4 'CUDA_VISIBLE_DEVICES=$(({%} - 1)) {}'
 
   clean:
     desc: "Clean outputs and Hydra logs"
