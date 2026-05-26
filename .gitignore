@@ -75,3 +75,4 @@ task.lock
 # Reuslts 
 *.csv
 *.png
+*.tex
