@@ -1,0 +1,16 @@
+\begin{table}
+\caption{Evaluation rewards and best population fitness across different methods on FetchReachDense-v4.}
+\label{tab:summary_FetchReachDense-v4}
+\begin{tabular}{lcccc}
+\toprule
+Algorithm/Method & Eval_Reward_Mean & Eval_Reward_Std & Best_Pop_Fitness_Mean & Best_Pop_Fitness_Std \\
+\midrule
+PPO (Baseline) & -31.962258 & 14.160029 & NaN & NaN \\
+TD3 (Baseline) & -4.537025 & 2.175632 & NaN & NaN \\
+ERL (Baseline) & -1.073480 & 0.651472 & -0.713737 & 0.143817 \\
+SC-ERL (Random) & -0.828177 & 0.259577 & -0.398616 & 0.166595 \\
+SC-ERL (Ensemble) [Ours] & -0.826259 & 0.150406 & -0.316619 & 0.121106 \\
+SC-ERL (Dropout) [Ours] & -0.733930 & 0.137616 & -0.325398 & 0.262141 \\
+\bottomrule
+\end{tabular}
+\end{table}

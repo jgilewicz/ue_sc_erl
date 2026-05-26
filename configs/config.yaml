@@ -13,7 +13,7 @@ eval_env:
 
 wandb:
   enabled: true
-  project: evo_rl_surrogate_uncertainty_prediction
+  project: mujoco_surrogate_uncertainty_prediction
   entity: evo_rl
   name: null
   tags: []
