@@ -72,7 +72,8 @@ pytestdebug.log
 .task/
 task.lock
 
-# Reuslts 
+# Results
 *.csv
 *.png
 *.tex
+full_report.pdf

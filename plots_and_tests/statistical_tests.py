@@ -26,13 +26,13 @@ def get_stable_final_values(env_id, merged_data):
                 y_metric = "rl_reward"
             elif "eval_reward" in df.columns and not df["eval_reward"].isna().all():
                 y_metric = "eval_reward"
-            elif "best_population_fitness" in df.columns and not df["best_population_fitness"].isna().all():
-                y_metric = "best_population_fitness"
             else:
                 continue
 
             max_steps = df["total_steps"].max()
-            df_last_10 = df[df["total_steps"] >= max_steps * 0.9].dropna(subset=[y_metric])
+            df_last_10 = df[df["total_steps"] >= max_steps * 0.9].dropna(
+                subset=[y_metric]
+            )
 
             if not df_last_10.empty:
                 mean_val = df_last_10[y_metric].mean()
@@ -140,20 +140,15 @@ def run_significance_tests(env_id, stable_values, base_dir="results"):
             )
         )
 
-    # Save Markdown for walkthrough / visual checking
-    md_out = os.path.join(out_dir, f"{env_id}_significance_table.md")
-    with open(md_out, "w") as f:
-        f.write(f"# Statistical Significance Testing - {env_id}\n\n")
-        f.write(
-            "Normality check via Shapiro-Wilk (alpha=0.05). Comparison uses Welch's t-test (if normal) or Mann-Whitney U (if non-normal).\n\n"
-        )
-        f.write(df_tests.to_markdown(index=False))
-        f.write("\n")
+
 
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = script_dir
+
+    project_root = os.path.dirname(script_dir)
+    output_base_dir = os.path.join(project_root, "results")
 
     eval_reward_dir = os.path.join(base_dir, "eval_reward")
     if not os.path.exists(eval_reward_dir):
@@ -168,7 +163,7 @@ def main():
     for env_id in environments:
         merged_data = load_environment_data(env_id, base_dir)
         stable_values = get_stable_final_values(env_id, merged_data)
-        run_significance_tests(env_id, stable_values, base_dir)
+        run_significance_tests(env_id, stable_values, output_base_dir)
 
 
 if __name__ == "__main__":

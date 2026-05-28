@@ -276,7 +276,7 @@ def generate_sample_efficiency_plot(env_id, merged_data, out_path):
 
     sns.despine(ax=ax, top=True, right=True)
     ax.legend(
-        loc="lower right",
+        loc="upper left",
         frameon=True,
         facecolor="white",
         framealpha=0.9,
@@ -425,7 +425,7 @@ def generate_surrogate_analysis_plot(env_id, merged_data, out_path):
         ax.legend(
             lines,
             labels,
-            loc="lower left",
+            loc="upper left",
             frameon=True,
             facecolor="white",
             framealpha=0.9,
@@ -446,7 +446,7 @@ def generate_surrogate_analysis_plot(env_id, merged_data, out_path):
     plt.close()
 
 
-def generate_summary_table(env_id, base_dir="results"):
+def generate_summary_table(env_id, base_dir="results", out_base_dir=None):
     """
     Saves strictly raw float numerical values to summary_table.csv (no formatted string prints).
     """
@@ -519,7 +519,7 @@ def generate_summary_table(env_id, base_dir="results"):
 
     csv_table = pd.DataFrame(csv_rows)
 
-    out_dir = os.path.join(base_dir, env_id)
+    out_dir = os.path.join(out_base_dir if out_base_dir is not None else base_dir, env_id)
     os.makedirs(out_dir, exist_ok=True)
     latex_out = os.path.join(out_dir, f"{env_id}_summary_table.tex")
     with open(latex_out, "w") as f:
@@ -533,7 +533,7 @@ def generate_summary_table(env_id, base_dir="results"):
         )
 
 
-def generate_critic_correlation_plot(env_id, base_dir="results"):
+def generate_critic_correlation_plot(env_id, base_dir="results", out_base_dir=None):
     """
     Plots Scatter plots and trendlines showing the correlation between Critic Loss and Uncertainty Mean.
     """
@@ -641,7 +641,7 @@ def generate_critic_correlation_plot(env_id, base_dir="results"):
     )
     plt.tight_layout()
 
-    out_dir = os.path.join(base_dir, env_id)
+    out_dir = os.path.join(out_base_dir if out_base_dir is not None else base_dir, env_id)
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f"{env_id}_critic_correlation.png")
     plt.savefig(out_path, dpi=300)
@@ -665,6 +665,9 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = script_dir
 
+    project_root = os.path.dirname(script_dir)
+    output_base_dir = os.path.join(project_root, "results")
+
     eval_reward_dir = os.path.join(base_dir, "eval_reward")
     if not os.path.exists(eval_reward_dir):
         return
@@ -678,7 +681,7 @@ def main():
     for env_id in environments:
         merged_data = load_environment_data(env_id, base_dir)
 
-        out_dir = os.path.join(base_dir, env_id)
+        out_dir = os.path.join(output_base_dir, env_id)
         os.makedirs(out_dir, exist_ok=True)
         se_plot_path = os.path.join(out_dir, f"{env_id}_sample_efficiency.png")
         generate_sample_efficiency_plot(env_id, merged_data, se_plot_path)
@@ -686,8 +689,8 @@ def main():
         sa_plot_path = os.path.join(out_dir, f"{env_id}_surrogate_analysis.png")
         generate_surrogate_analysis_plot(env_id, merged_data, sa_plot_path)
 
-        generate_summary_table(env_id, base_dir)
-        generate_critic_correlation_plot(env_id, base_dir)
+        generate_summary_table(env_id, base_dir, out_base_dir=output_base_dir)
+        generate_critic_correlation_plot(env_id, base_dir, out_base_dir=output_base_dir)
 
 
 if __name__ == "__main__":
