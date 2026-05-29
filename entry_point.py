@@ -176,6 +176,7 @@ def main(cfg: DictConfig) -> None:
             surrogate_mode=SurrogateMode.to_mode(cfg.surrogate.mode),
             k=cfg.surrogate.k,
             ensemble_size=cfg.surrogate.k,
+            beta=cfg.surrogate.beta,
             logger=logger,
             debug=cfg.debug,
         )

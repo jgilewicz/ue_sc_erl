@@ -19,9 +19,7 @@ def print_td3_debug_summary(
     critic_loss: float,
 ) -> None:
     print(f"[TD3] Steps {format_steps(total_steps)}")
-    print(
-        f"  Rewards     recent avg: {avg_reward:8.2f} | eval: {eval_reward:8.2f}"
-    )
+    print(f"  Rewards     recent avg: {avg_reward:8.2f} | eval: {eval_reward:8.2f}")
     print(
         f"  Optimization actor loss: {actor_loss:8.4f} | critic loss: {critic_loss:8.4f}"
     )
@@ -36,14 +34,11 @@ def print_ddpg_debug_summary(
     critic_loss: float,
 ) -> None:
     print(f"[DDPG] Steps {format_steps(total_steps)}")
-    print(
-        f"  Rewards     recent avg: {avg_reward:8.2f} | eval: {eval_reward:8.2f}"
-    )
+    print(f"  Rewards     recent avg: {avg_reward:8.2f} | eval: {eval_reward:8.2f}")
     print(
         f"  Optimization actor loss: {actor_loss:8.4f} | critic loss: {critic_loss:8.4f}"
     )
     print()
-
 
 
 def print_erl_debug_summary(
@@ -138,22 +133,38 @@ def train_critic_step(
     gamma: float = 0.99,
     tau: float = 0.005,
 ) -> float:
-    batch = replay_buffer.sample(batch_size=batch_size)
+    if hasattr(critic, "critics") and hasattr(target_critic, "critics"):
+        critic_loss = 0.0
+        for critic_i, target_critic_i in zip(critic.critics, target_critic.critics):
+            batch_i = replay_buffer.sample(batch_size=batch_size)
+            with torch.no_grad():
+                next_action_i = target_actor(batch_i["next_state"])
+                next_q_i = target_critic_i(batch_i["next_state"], next_action_i)
+                target_q_i = (
+                    batch_i["reward"] + (1.0 - batch_i["done"]) * gamma * next_q_i
+                )
 
-    with torch.no_grad():
-        next_action = target_actor(batch["next_state"])
-        if hasattr(target_critic, "compute_loss"):
-            next_q_mean, _ = target_critic(batch["next_state"], next_action)
-            next_q = next_q_mean
-        else:
-            next_q = target_critic(batch["next_state"], next_action)
-
-        target_q = batch["reward"] + (1.0 - batch["done"]) * gamma * next_q
-
-    if hasattr(critic, "compute_loss"):
-        critic_loss = critic.compute_loss(batch["state"], batch["action"], target_q)
+            current_q_i = critic_i(batch_i["state"], batch_i["action"])
+            critic_loss += F.mse_loss(current_q_i, target_q_i)
     else:
-        critic_loss = torch.nn.MSELoss()(critic(batch["state"], batch["action"]), target_q)
+        batch = replay_buffer.sample(batch_size=batch_size)
+
+        with torch.no_grad():
+            next_action = target_actor(batch["next_state"])
+            if hasattr(target_critic, "compute_loss"):
+                next_q_mean, _ = target_critic(batch["next_state"], next_action)
+                next_q = next_q_mean
+            else:
+                next_q = target_critic(batch["next_state"], next_action)
+
+            target_q = batch["reward"] + (1.0 - batch["done"]) * gamma * next_q
+
+        if hasattr(critic, "compute_loss"):
+            critic_loss = critic.compute_loss(batch["state"], batch["action"], target_q)
+        else:
+            critic_loss = torch.nn.MSELoss()(
+                critic(batch["state"], batch["action"]), target_q
+            )
 
     critic_optimizer.zero_grad()
     critic_loss.backward()
@@ -177,7 +188,7 @@ def train_actor_step(
 
     q_values = critic(batch["state"], actor(batch["state"]))
     if isinstance(q_values, tuple):
-        q_values = q_values[0] # use mean_q for ensemble
+        q_values = q_values[0]  # use mean_q for ensemble
 
     actor_loss = -q_values.mean()
 
@@ -205,7 +216,7 @@ def warmup(env: gym.Env, replay_buffer: Buffer, warmup_steps: int) -> int:
                 action=action,
                 reward=reward,
                 next_state=next_obs,
-                done=done,
+                done=terminated,
             )
         )
 
@@ -217,6 +228,7 @@ def warmup(env: gym.Env, replay_buffer: Buffer, warmup_steps: int) -> int:
 
     return total_steps
 
+
 def rollout_policy(
     policy: Actor,
     env: gym.Env,
@@ -224,6 +236,7 @@ def rollout_policy(
     replay_buffer: Buffer,
     episodes: int = 1,
     noise_std: float = 0.0,
+    store_in_buffer: bool = True,
 ) -> tuple[float, int]:
     policy.eval()
 
@@ -246,15 +259,16 @@ def rollout_policy(
             next_obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
 
-            replay_buffer.add(
-                Transition(
-                    state=obs,
-                    action=action,
-                    reward=reward,
-                    next_state=next_obs,
-                    done=done,
+            if store_in_buffer and replay_buffer is not None:
+                replay_buffer.add(
+                    Transition(
+                        state=obs,
+                        action=action,
+                        reward=reward,
+                        next_state=next_obs,
+                        done=terminated,
+                    )
                 )
-            )
 
             obs = next_obs
             episode_reward += reward
@@ -263,7 +277,6 @@ def rollout_policy(
         total_reward += episode_reward
 
     return total_reward / episodes, total_steps
-
 
 
 def evaluate_policy(
@@ -299,9 +312,6 @@ def evaluate_policy(
         total_reward += episode_reward
 
     return total_reward / episodes
-
-
-
 
 
 def td3_select_action(

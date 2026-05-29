@@ -46,6 +46,7 @@ def SC_ERL(
     logger: WandbLogger | None = None,
     surrogate_mode: SurrogateMode = SurrogateMode.RANDOM,
     ensemble_size: int = 5,
+    beta: float = 1.0,
     debug: bool = False,
 ) -> None:
 
@@ -138,6 +139,7 @@ def SC_ERL(
         rng=rng,
         k=k,
         surrogate_mode=surrogate_mode,
+        beta=beta,
     )
 
     total_steps = warmup(env, replay_buffer, warmup_steps=warmup_steps)
@@ -152,7 +154,7 @@ def SC_ERL(
             surrogate_controller.generation_based_control(
                 population=population,
                 env=env,
-                evaluate_episodes=5,
+                evaluate_episodes=1,
                 mutation_std=mutation_std,
                 mutation_prob=mutation_prob,
                 elite_ratio=elite_ratio,
@@ -186,7 +188,6 @@ def SC_ERL(
 
         critic_loss = 0.0
         actor_loss = 0.0
-
         if len(replay_buffer) >= batch_size:
             for _ in range(gradient_steps):
                 critic_loss = train_critic_step(
@@ -210,91 +211,80 @@ def SC_ERL(
                     tau=tau,
                 )
 
-            # Once every few generations, inject the weakest actor into the population
-            if generation % rl_injection_interval == 0:
-                eval_fitnesses = [
-                    evaluate_policy(ind, eval_env, device=device, episodes=5)
-                    for ind in population
-                ]
+        if generation % rl_injection_interval == 0:
+            evolution_module.sync_rl_to_pop(actor, population, fitnesses)
 
-                weakest_idx = int(np.argmin(eval_fitnesses))
-                population[weakest_idx].load_state_dict(actor.state_dict())
+        avg_fitness = np.mean(fitnesses) if fitnesses else 0.0
+        best_fitness = max(fitnesses) if fitnesses else 0.0
+        avg_reward = np.mean(recent_rewards) if recent_rewards else 0.0
 
-            avg_fitness = np.mean(fitnesses) if fitnesses else 0.0
-            best_fitness = max(fitnesses) if fitnesses else 0.0
-            avg_reward = np.mean(recent_rewards) if recent_rewards else 0.0
+        if generation % 10 == 0 or total_steps >= n_steps:
+            if debug:
+                print_sc_erl_debug_summary(
+                    generation=generation,
+                    total_steps=total_steps,
+                    avg_fitness=avg_fitness,
+                    best_fitness=best_fitness,
+                    avg_reward=avg_reward,
+                    rl_reward=rl_reward,
+                    evo_steps=evo_steps,
+                    actor_loss=actor_loss,
+                    critic_loss=critic_loss,
+                    uncertainty_mean=(
+                        surrogate_controller.last_uncertainty_mean
+                        if surrogate_mode
+                        in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
+                        else None
+                    ),
+                    uncertainty_max=(
+                        surrogate_controller.last_uncertainty_max
+                        if surrogate_mode
+                        in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
+                        else None
+                    ),
+                    uncertainty_threshold=(
+                        surrogate_controller.last_uncertainty_threshold
+                        if surrogate_mode
+                        in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
+                        else None
+                    ),
+                    surrogate_mode=surrogate_mode.name.lower(),
+                )
 
-            if generation % 10 == 0:
-                avg_reward = np.mean(recent_rewards) if recent_rewards else 0.0
-                best_fitness = max(fitnesses) if fitnesses else 0.0
-                avg_fitness = np.mean(fitnesses) if fitnesses else 0.0
-
-                if debug:
-                    print_sc_erl_debug_summary(
-                        generation=generation,
-                        total_steps=total_steps,
-                        avg_fitness=avg_fitness,
-                        best_fitness=best_fitness,
-                        avg_reward=avg_reward,
-                        rl_reward=rl_reward,
-                        evo_steps=evo_steps,
-                        actor_loss=actor_loss,
-                        critic_loss=critic_loss,
-                        uncertainty_mean=(
-                            surrogate_controller.last_uncertainty_mean
-                            if surrogate_mode
-                            in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
-                            else None
-                        ),
-                        uncertainty_max=(
-                            surrogate_controller.last_uncertainty_max
-                            if surrogate_mode
-                            in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
-                            else None
-                        ),
-                        uncertainty_threshold=(
-                            surrogate_controller.last_uncertainty_threshold
-                            if surrogate_mode
-                            in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
-                            else None
-                        ),
-                        surrogate_mode=surrogate_mode.name.lower(),
-                    )
-
-                if logger is not None:
-                    metrics = {
-                        "generation": generation,
-                        "total_steps": total_steps,
-                        "evo_steps": evo_steps,
-                        "avg_population_fitness": avg_fitness,
-                        "best_population_fitness": best_fitness,
-                        "avg_recent_reward": avg_reward,
-                        "rl_reward": rl_reward,
-                        "actor_loss": actor_loss,
-                        "critic_loss": critic_loss,
-                        "surrogate_used": surrogate_controller.mode == "surrogate",
+        if logger is not None:
+            metrics = {
+                "generation": generation,
+                "total_steps": total_steps,
+                "evo_steps": evo_steps,
+                "avg_population_fitness": avg_fitness,
+                "best_population_fitness": best_fitness,
+                "avg_recent_reward": avg_reward,
+                "rl_reward": rl_reward,
+                "actor_loss": actor_loss,
+                "critic_loss": critic_loss,
+                "surrogate_used": surrogate_controller.mode == "surrogate",
+            }
+            if surrogate_mode in (
+                SurrogateMode.DROPOUT,
+                SurrogateMode.ENSEMBLE,
+            ):
+                metrics.update(
+                    {
+                        "uncertainty_mean": surrogate_controller.last_uncertainty_mean,
+                        "uncertainty_max": surrogate_controller.last_uncertainty_max,
+                        "uncertainty_threshold": surrogate_controller.last_uncertainty_threshold,
                     }
-                    if surrogate_mode in (
-                        SurrogateMode.DROPOUT,
-                        SurrogateMode.ENSEMBLE,
-                    ):
-                        metrics.update(
-                            {
-                                "uncertainty_mean": surrogate_controller.last_uncertainty_mean,
-                                "uncertainty_max": surrogate_controller.last_uncertainty_max,
-                                "uncertainty_threshold": surrogate_controller.last_uncertainty_threshold,
-                            }
-                        )
+                )
 
-                    metrics.update(
-                        {
-                            "surrogate_mode": surrogate_mode.value,
-                            "omega": omega,
-                            "k": k,
-                        }
-                    )
+            metrics.update(
+                {
+                    "surrogate_mode": surrogate_mode.value,
+                    "omega": omega,
+                    "k": k,
+                }
+            )
 
-                    logger.log(
-                        metrics,
-                        step=generation,
-                    )
+            logger.log(
+                metrics,
+                step=generation,
+            )

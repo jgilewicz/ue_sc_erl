@@ -147,11 +147,11 @@ def main():
     results_dir = os.path.join(project_root, "results")
 
     environments = [
-        "Ant-v5",
         "HalfCheetah-v5",
         "Hopper-v5",
-        "Swimmer-v5",
         "Walker2d-v5",
+        "Ant-v5",
+        "Swimmer-v5",
     ]
 
     pdf = ERLReportPDF(orientation="P", unit="mm", format="A4")
@@ -259,12 +259,11 @@ def main():
             if corr_data:
                 pdf.draw_data_table(corr_data)
 
-        # Page 2: Plots
+        # Page 2: Sample Efficiency Plot
         pdf.add_page()
         pdf.section_title(f"{env} - Wykresy Wyników i Analizy")
         pdf.ln(5)
 
-        # 1. Sample Efficiency Curve (Centered, wide)
         eff_img = os.path.join(env_dir, f"{env}_sample_efficiency.png")
         if os.path.exists(eff_img):
             pdf.subsection_title("1. Krzywa Wydajności Próbkowej")
@@ -273,20 +272,26 @@ def main():
             pdf.set_y(y_before + 98)
             pdf.ln(5)
 
-        # 2. Surrogate Analysis & Critic Correlation side-by-side
+        # Page 3: Surrogate Analysis & Critic Correlation (One below another)
+        pdf.add_page()
+        pdf.section_title(f"{env} - Analiza Surogatu i Korelacji")
+        pdf.ln(5)
+
         surr_img = os.path.join(env_dir, f"{env}_surrogate_analysis.png")
-        corr_img = os.path.join(env_dir, f"{env}_critic_correlation.png")
-
-        y_plots = pdf.get_y()
         if os.path.exists(surr_img):
-            pdf.set_xy(15, y_plots)
             pdf.subsection_title("2. Analiza Niepewności Surogatu")
-            pdf.image(surr_img, x=15, y=pdf.get_y(), w=85, h=55)
+            y_before = pdf.get_y()
+            pdf.image(surr_img, x=25, y=y_before, w=160, h=60)
+            pdf.set_y(y_before + 63)
+            pdf.ln(5)
 
+        corr_img = os.path.join(env_dir, f"{env}_critic_correlation.png")
         if os.path.exists(corr_img):
-            pdf.set_xy(110, y_plots)
             pdf.subsection_title("3. Wykres Korelacji Krytyka")
-            pdf.image(corr_img, x=110, y=pdf.get_y(), w=85, h=55)
+            y_before = pdf.get_y()
+            pdf.image(corr_img, x=25, y=y_before, w=160, h=55)
+            pdf.set_y(y_before + 58)
+            pdf.ln(5)
 
     pdf_output_path = os.path.join(project_root, "full_report.pdf")
     pdf.output(pdf_output_path)

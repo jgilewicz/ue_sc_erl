@@ -119,6 +119,7 @@ def ERL(
         fitnesses = []
         critic_loss = 0.0
         actor_loss = 0.0
+        generation_steps = 0
 
         for individual in population:
             fitness, steps = rollout_policy(
@@ -126,12 +127,13 @@ def ERL(
                 env=env,
                 device=device,
                 replay_buffer=replay_buffer,
-                episodes=evaluate_episodes,
+                episodes=1,  # ξ=1 per ERL paper Table 2 — one trial per individual
                 noise_std=0.0,
             )
 
             fitnesses.append(fitness)
             total_steps += steps
+            generation_steps += steps
             recent_rewards.append(fitness)
 
             if total_steps >= n_steps:
@@ -145,6 +147,16 @@ def ERL(
             elite_ratio=elite_ratio,
             surrogate_evaluation=False,
         )
+
+        _, rl_steps = rollout_policy(
+            policy=actor,
+            env=env,
+            device=device,
+            replay_buffer=replay_buffer,
+            episodes=1,
+            noise_std=exploration_noise_std,
+        )
+        total_steps += rl_steps
 
         rl_reward = evaluate_policy(
             policy=actor,
@@ -179,21 +191,14 @@ def ERL(
                     tau=tau,
                 )
 
-        # Once every few generations, inject the weakest actor into the population
         if generation % rl_injection_interval == 0:
-            eval_fitnesses = [
-                evaluate_policy(ind, eval_env, device=device, episodes=5)
-                for ind in population
-            ]
+            evolution_module.sync_rl_to_pop(actor, population, fitnesses)
 
-            weakest_idx = int(np.argmin(eval_fitnesses))
-            population[weakest_idx].load_state_dict(actor.state_dict())
+        avg_reward = np.mean(recent_rewards) if recent_rewards else 0.0
+        best_fitness = max(fitnesses) if fitnesses else 0.0
+        avg_fitness = np.mean(fitnesses) if fitnesses else 0.0
 
-        if generation % 10 == 0:
-            avg_reward = np.mean(recent_rewards) if recent_rewards else 0.0
-            best_fitness = max(fitnesses) if fitnesses else 0.0
-            avg_fitness = np.mean(fitnesses) if fitnesses else 0.0
-
+        if generation % 10 == 0 or total_steps >= n_steps:
             if debug:
                 print_erl_debug_summary(
                     generation=generation,
@@ -206,17 +211,17 @@ def ERL(
                     critic_loss=critic_loss,
                 )
 
-            if logger is not None:
-                logger.log(
-                    {
-                        "generation": generation,
-                        "total_steps": total_steps,
-                        "avg_population_fitness": avg_fitness,
-                        "best_population_fitness": best_fitness,
-                        "avg_recent_reward": avg_reward,
-                        "rl_reward": rl_reward,
-                        "actor_loss": actor_loss,
-                        "critic_loss": critic_loss,
-                    },
-                    step=generation,
-                )
+        if logger is not None:
+            logger.log(
+                {
+                    "generation": generation,
+                    "total_steps": total_steps,
+                    "avg_population_fitness": avg_fitness,
+                    "best_population_fitness": best_fitness,
+                    "avg_recent_reward": avg_reward,
+                    "rl_reward": rl_reward,
+                    "actor_loss": actor_loss,
+                    "critic_loss": critic_loss,
+                },
+                step=generation,
+            )

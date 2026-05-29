@@ -7,6 +7,7 @@ The repository currently includes implementations of:
 - `ERL`
 - `SC_ERL`
 - `PPO`
+- `DDPG`
 
 ## Project Goal
 
@@ -63,6 +64,26 @@ Run all basic experiments from the `Makefile`:
 make run-all
 ```
 
+Run parallel experiment matrix with `Taskfile` (`task`):
+
+You can run the full MuJoCo fallback experiment matrix (including seeds `0-4`, and algorithms `sc_erl` in dropout/ensemble/random modes, `td3`, `erl`, `ppo`, and `ddpg`) in parallel using:
+
+```bash
+task run-mujoco-parallel
+```
+
+Alternatively, to run **only the evolutionary algorithms** (ERL and SC-ERL dropout/ensemble/random, without other baselines), use:
+
+```bash
+task run-mujoco-parallel-evo
+```
+
+To run only the evolutionary algorithms **sequentially** (one by one, to prevent MacBook overheating/throttling):
+
+```bash
+task run-mujoco-sequential-evo
+```
+
 ## Configuration
 
 The main configuration file is:
@@ -75,6 +96,7 @@ Algorithm-specific configurations are stored in:
 - `configs/algorithm/erl.yaml`
 - `configs/algorithm/sc_erl.yaml`
 - `configs/algorithm/ppo.yaml`
+- `configs/algorithm/ddpg.yaml`
 
 Example configuration parameters:
 
@@ -106,10 +128,12 @@ If you use a `.env` file, make sure `WANDB_API_KEY` is set.
 │   ├── TD3/             # TD3 implementation
 │   ├── ERL/             # ERL implementation
 │   ├── SC_ERL/          # SC-ERL implementation
-│   └── PPO/             # PPO implementation
+│   ├── PPO/             # PPO implementation
+│   └── DDPG/            # DDPG implementation
 ├── entry_point.py       # main entry point
 ├── pyproject.toml       # project metadata and dependencies
-└── Makefile             # helper commands
+├── Makefile             # Makefile helper commands
+└── Taskfile.yml         # Task runner for parallel matrices and pipelines
 ```
 
 ## Outputs and Artifacts

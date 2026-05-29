@@ -33,12 +33,14 @@ METHOD_COLORS = {
     "erl": "#de8f05",  # Orange
     "ppo": "#d55e00",  # Red/Vermillion
     "td3": "#cc78bc",  # Purple
+    "ddpg": "#56b4e9",  # Sky Blue
     "sc_erl_random": "#949494",  # Gray
 }
 
 METHOD_LABELS = {
     "ppo": "PPO (Baseline)",
     "td3": "TD3 (Baseline)",
+    "ddpg": "DDPG (Baseline)",
     "erl": "ERL (Baseline)",
     "sc_erl_ensemble": "SC-ERL (Ensemble) [Ours]",
     "sc_erl_dropout": "SC-ERL (Dropout) [Ours]",
@@ -279,7 +281,7 @@ def generate_sample_efficiency_plot(env_id, merged_data, out_path):
         loc="upper left",
         frameon=True,
         facecolor="white",
-        framealpha=0.9,
+        framealpha=0.3,
         edgecolor="#f2f2f2",
     )
     plt.tight_layout()
@@ -428,7 +430,7 @@ def generate_surrogate_analysis_plot(env_id, merged_data, out_path):
             loc="upper left",
             frameon=True,
             facecolor="white",
-            framealpha=0.9,
+            framealpha=0.3,
             edgecolor="#f2f2f2",
         )
 
@@ -493,6 +495,7 @@ def generate_summary_table(env_id, base_dir="results", out_base_dir=None):
     method_order = [
         "ppo",
         "td3",
+        "ddpg",
         "erl",
         "sc_erl_random",
         "sc_erl_ensemble",
@@ -577,7 +580,14 @@ def generate_critic_correlation_plot(env_id, base_dir="results", out_base_dir=No
             sub_mean[col_mean].replace("Infinity", np.nan), errors="coerce"
         )
 
-        merged = pd.merge(sub_loss, sub_mean, on="Step", how="inner").dropna()
+        # Convert Steps to numeric float to ensure matching types
+        sub_loss["Step"] = pd.to_numeric(sub_loss["Step"], errors="coerce").astype(float)
+        sub_mean["Step"] = pd.to_numeric(sub_mean["Step"], errors="coerce").astype(float)
+
+        sub_loss = sub_loss.dropna()
+        sub_mean = sub_mean.dropna()
+
+        merged = pd.merge(sub_loss, sub_mean, on="Step", how="inner")
         if merged.empty:
             ax.text(0.5, 0.5, f"No overlap for {label}", ha="center", va="center")
             continue
@@ -628,7 +638,7 @@ def generate_critic_correlation_plot(env_id, base_dir="results", out_base_dir=No
             loc="upper right",
             frameon=True,
             facecolor="white",
-            framealpha=0.9,
+            framealpha=0.3,
             edgecolor="#f2f2f2",
         )
         sns.despine(ax=ax, top=True, right=True)

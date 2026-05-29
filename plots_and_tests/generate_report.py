@@ -72,11 +72,11 @@ def main():
     results_dir = os.path.join(project_root, "results")
 
     environments = [
-        "Ant-v5",
         "HalfCheetah-v5",
         "Hopper-v5",
-        "Swimmer-v5",
         "Walker2d-v5",
+        "Ant-v5",
+        "Swimmer-v5",
     ]
 
     # Let's set up paths for workspace report
@@ -92,7 +92,7 @@ def main():
 
     # Header of the report
     md_content = """# Evolutionary Reinforcement Learning - Statistical & Performance Report
-This report contains performance results, statistical significance tests, critic correlation tables, and experimental plots for five environments: Ant-v5, HalfCheetah-v5, Hopper-v5, Swimmer-v5, and Walker2d-v5.
+This report contains performance results, statistical significance tests, critic correlation tables, and experimental plots for five MuJoCo environments: HalfCheetah-v5, Hopper-v5, Walker2d-v5, Ant-v5, and Swimmer-v5.
 
 ---
 """

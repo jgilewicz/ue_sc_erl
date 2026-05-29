@@ -47,7 +47,7 @@ def run_significance_tests(env_id, stable_values, base_dir="results"):
     Saves GECCO-style LaTeX and CSV tables.
     """
     proposed_methods = ["sc_erl_ensemble", "sc_erl_dropout"]
-    baselines = ["ppo", "td3", "erl", "sc_erl_random"]
+    baselines = ["ppo", "td3", "ddpg", "erl", "sc_erl_random"]
 
     rows = []
 

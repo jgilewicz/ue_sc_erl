@@ -2,18 +2,18 @@ defaults:
   - algorithm: erl
   - _self_
 
-seed: 42
+seed: 0
 device: auto
 debug: false
 
 env:
-  id: FetchPickAndPlaceDense-v4
+  id: Ant-v5
 eval_env:
-  id: FetchPickAndPlaceDense-v4
+  id: Ant-v5
 
 wandb:
   enabled: true
-  project: mujoco_surrogate_uncertainty_prediction
+  project: mujoco_surrogate_uncertainty_prediction_v2
   entity: evo_rl
   name: null
   tags: []

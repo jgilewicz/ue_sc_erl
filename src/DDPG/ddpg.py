@@ -123,7 +123,7 @@ def DDPG(
                 action=action,
                 reward=reward,
                 next_state=next_state,
-                done=done,
+                done=terminated,
             )
         )
 

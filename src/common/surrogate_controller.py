@@ -37,7 +37,8 @@ class SurrogateController:
         omega: float = 0.5,
         rng: np.random.Generator | None = None,
         k: int = 5,
-        history_window: int = 50,
+        history_window: int = 20,
+        beta: float = 1.0,
     ):
         self.evolution_module = evolution_module
         self.critic = critic
@@ -46,6 +47,7 @@ class SurrogateController:
         self.omega = omega
         self.rng = rng if rng is not None else np.random.default_rng()
         self.k = k
+        self.beta = beta
 
         self.last_fitness = []
         self.last_uncertainty = []
@@ -134,16 +136,26 @@ class SurrogateController:
             any_surrogate = False
 
             for i, policy in enumerate(population):
-                if self.last_uncertainty[i] > threshold:
+                mu_q = surrogate_fitnesses[i]
+                sigma_q = self.last_uncertainty[i]
+
+                if sigma_q > threshold:
+                    # High uncertainty -> Active Exploration / Safety Verification
                     fit, s = self._real_evaluation([policy], env, evaluate_episodes)
                     fitnesses.append(fit[0])
                     steps += s
                 else:
-                    fitnesses.append(surrogate_fitnesses[i])
+                    # Low uncertainty -> Save steps, apply safe LCB
+                    lcb_fitness = mu_q - (self.beta * sigma_q)
+                    fitnesses.append(lcb_fitness)
                     any_surrogate = True
 
             surrogate = any_surrogate
-            self.mode = "mixed" if any_surrogate and steps > 0 else ("surrogate" if any_surrogate else "real")
+            self.mode = (
+                "mixed"
+                if any_surrogate and steps > 0
+                else ("surrogate" if any_surrogate else "real")
+            )
 
             self.last_fitness = fitnesses
 
@@ -161,7 +173,7 @@ class SurrogateController:
                 with torch.no_grad():
                     actions = policy(obs)
                     mean_q, std_q = self.critic(obs, actions)
-                
+
                 surrogate_fitnesses.append(mean_q.mean().item())
                 uncertainties.append(std_q.mean().item())
 
@@ -179,16 +191,26 @@ class SurrogateController:
             any_surrogate = False
 
             for i, policy in enumerate(population):
-                if self.last_uncertainty[i] > threshold:
+                mu_q = surrogate_fitnesses[i]
+                sigma_q = self.last_uncertainty[i]
+
+                if sigma_q > threshold:
+                    # High uncertainty -> Active Exploration / Safety Verification
                     fit, s = self._real_evaluation([policy], env, evaluate_episodes)
                     fitnesses.append(fit[0])
                     steps += s
                 else:
-                    fitnesses.append(surrogate_fitnesses[i])
+                    # Low uncertainty -> Save steps, apply safe LCB
+                    lcb_fitness = mu_q - (self.beta * sigma_q)
+                    fitnesses.append(lcb_fitness)
                     any_surrogate = True
 
             surrogate = any_surrogate
-            self.mode = "mixed" if any_surrogate and steps > 0 else ("surrogate" if any_surrogate else "real")
+            self.mode = (
+                "mixed"
+                if any_surrogate and steps > 0
+                else ("surrogate" if any_surrogate else "real")
+            )
 
             self.last_fitness = fitnesses
 
@@ -203,7 +225,9 @@ class SurrogateController:
 
         return population, fitnesses, steps
 
-    def _real_evaluation(self, population, env, evaluate_episodes):
+    def _real_evaluation(
+        self, population, env, evaluate_episodes, store_in_buffer: bool = False
+    ):
         fitnesses = []
         total_steps = 0
 
@@ -215,6 +239,7 @@ class SurrogateController:
                 replay_buffer=self.replay_buffer,
                 episodes=evaluate_episodes,
                 noise_std=0.0,
+                store_in_buffer=store_in_buffer,
             )
             fitnesses.append(fitness)
             total_steps += steps
