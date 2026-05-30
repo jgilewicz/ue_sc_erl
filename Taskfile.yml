@@ -47,7 +47,7 @@ tasks:
         done | shuf | xargs -I {} -P 24 bash -c '{}'
 
   run-machine-1:
-    desc: "Maszyna 1 (RTX 3090): Wszystkie algorytmy oprócz TD3 i PPO dla Ant-v5 (25 zadań)"
+    desc: "Maszyna 1 (RTX 3090 / 64 vCPU): Wszystkie algorytmy oprócz TD3 i PPO dla Ant-v5 (25 zadań)"
     cmds:
       - uv sync
       - |
@@ -70,8 +70,8 @@ tasks:
           echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=random seed=$seed env.id=Ant-v5 eval_env.id=Ant-v5 n_steps=1000000 wandb.enabled=true wandb.name=\"sc_erl_random_Ant-v5_seed${seed}\" wandb.tags=\"[Maszyna1,MuJoCo,sc_erl,random]\"" >> /tmp/m1_jobs.txt
         done
 
-        # Uruchomienie (RTX 3090: 16 vCPUs -> optymalne -P 4 ze względu na ciężkie środowisko fizyczne Ant-v5)
-        cat /tmp/m1_jobs.txt | shuf | xargs -I {} -P 4 bash -c '{}'
+        # Uruchomienie (RTX 3090: 64 vCPUs / 172GB RAM -> optymalne -P 12 dla Ant-v5)
+        cat /tmp/m1_jobs.txt | shuf | xargs -I {} -P 12 bash -c '{}'
         rm -f /tmp/m1_jobs.txt
 
   run-machine-2:
