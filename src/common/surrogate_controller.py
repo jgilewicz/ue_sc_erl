@@ -86,7 +86,7 @@ class SurrogateController:
             self.last_fitness = fitnesses
 
         elif self.surrogate_mode == SurrogateMode.DROPOUT:
-            surrogate_fitnesses, self.last_uncertainty = (
+            surrogate_fitnesses, raw_uncertainties = (
                 MCDropout.fitness_evaluation_mc_dropout(
                     critic=self.critic,
                     population=population,
@@ -95,6 +95,12 @@ class SurrogateController:
                     device=self.device,
                 )
             )
+            # Calculate relative uncertainty (coefficient of variation: sigma_q / (|mu_q| + 1e-6))
+            self.last_uncertainty = [
+                sigma / (abs(mu) + 1e-6)
+                for mu, sigma in zip(surrogate_fitnesses, raw_uncertainties)
+            ]
+            
             mean_uncertainty = float(np.mean(self.last_uncertainty)) if self.last_uncertainty else 0.0
             std_uncertainty = float(np.std(self.last_uncertainty)) if self.last_uncertainty else 0.0
             threshold = mean_uncertainty + std_uncertainty
@@ -109,15 +115,16 @@ class SurrogateController:
 
             for i, policy in enumerate(population):
                 mu_q = surrogate_fitnesses[i]
-                sigma_q = self.last_uncertainty[i]
+                sigma_q = raw_uncertainties[i]
+                rel_u = self.last_uncertainty[i]
 
-                if sigma_q > threshold:
+                if rel_u > threshold:
                     # High uncertainty -> Active Exploration / Safety Verification
                     fit, s = self._real_evaluation([policy], env, evaluate_episodes)
                     fitnesses.append(fit[0])
                     steps += s
                 else:
-                    # Low uncertainty -> Save steps, apply safe LCB
+                    # Low uncertainty -> Save steps, apply safe LCB using raw sigma_q for correct Q scale
                     lcb_fitness = mu_q - (self.beta * sigma_q)
                     fitnesses.append(lcb_fitness)
                     any_surrogate = True
@@ -138,7 +145,7 @@ class SurrogateController:
 
             self.critic.eval()
             surrogate_fitnesses = []
-            uncertainties = []
+            raw_uncertainties = []
 
             for policy in population:
                 policy.eval()
@@ -147,9 +154,13 @@ class SurrogateController:
                     mean_q, std_q = self.critic(obs, actions)
 
                 surrogate_fitnesses.append(mean_q.mean().item())
-                uncertainties.append(std_q.mean().item())
+                raw_uncertainties.append(std_q.mean().item())
 
-            self.last_uncertainty = uncertainties
+            # Calculate relative uncertainty (coefficient of variation: sigma_q / (|mu_q| + 1e-6))
+            self.last_uncertainty = [
+                sigma / (abs(mu) + 1e-6)
+                for mu, sigma in zip(surrogate_fitnesses, raw_uncertainties)
+            ]
 
             mean_uncertainty = float(np.mean(self.last_uncertainty)) if self.last_uncertainty else 0.0
             std_uncertainty = float(np.std(self.last_uncertainty)) if self.last_uncertainty else 0.0
@@ -165,15 +176,16 @@ class SurrogateController:
 
             for i, policy in enumerate(population):
                 mu_q = surrogate_fitnesses[i]
-                sigma_q = self.last_uncertainty[i]
+                sigma_q = raw_uncertainties[i]
+                rel_u = self.last_uncertainty[i]
 
-                if sigma_q > threshold:
+                if rel_u > threshold:
                     # High uncertainty -> Active Exploration / Safety Verification
                     fit, s = self._real_evaluation([policy], env, evaluate_episodes)
                     fitnesses.append(fit[0])
                     steps += s
                 else:
-                    # Low uncertainty -> Save steps, apply safe LCB
+                    # Low uncertainty -> Save steps, apply safe LCB using raw sigma_q for correct Q scale
                     lcb_fitness = mu_q - (self.beta * sigma_q)
                     fitnesses.append(lcb_fitness)
                     any_surrogate = True

@@ -168,6 +168,7 @@ def train_critic_step(
 
     critic_optimizer.zero_grad()
     critic_loss.backward()
+    torch.nn.utils.clip_grad_norm_(critic.parameters(), max_norm=1.0)
     critic_optimizer.step()
 
     soft_update(target_critic, critic, tau=tau)
