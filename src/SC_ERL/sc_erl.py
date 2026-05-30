@@ -80,18 +80,20 @@ def SC_ERL(
 
     target_actor.load_state_dict(actor.state_dict())
 
+    critic_dropout = 0.2 if surrogate_mode == SurrogateMode.DROPOUT else 0.0
+
     critic = Critic(
         state_dim=state_dim,
         action_dim=action_dim,
         hidden_dim=hidden_dim,
-        dropout=0.0,
+        dropout=critic_dropout,
     ).to(device)
 
     target_critic = Critic(
         state_dim=state_dim,
         action_dim=action_dim,
         hidden_dim=hidden_dim,
-        dropout=0.0,
+        dropout=critic_dropout,
     ).to(device)
 
     target_critic.load_state_dict(critic.state_dict())
