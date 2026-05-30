@@ -47,23 +47,30 @@ tasks:
         done | shuf | xargs -I {} -P 24 bash -c '{}'
 
   run-machine-1:
-    desc: "Maszyna 1: Wszystkie algorytmy oprócz TD3 i PPO dla Hopper-v5 (25 zadań)"
+    desc: "Maszyna 1 (RTX 3090): Wszystkie algorytmy oprócz TD3 i PPO dla Ant-v5 (25 zadań)"
     cmds:
       - uv sync
       - |
         # Czyszczenie starego pliku przed generowaniem zadań
         rm -f /tmp/m1_jobs.txt
 
+        # Kluczowe poprawki: ograniczamy narzut wielowątkowości PyTorcha
+        export OMP_NUM_THREADS=1
+        export MKL_NUM_THREADS=1
+        export OPENBLAS_NUM_THREADS=1
+        export NUMEXPR_NUM_THREADS=1
+        export VECLIB_MAXIMUM_THREADS=1
+
         for seed in 0 1 2 3 4; do
           for algo in erl ddpg; do
-            echo "uv run python entry_point.py algorithm=$algo seed=$seed env.id=Hopper-v5 eval_env.id=Hopper-v5 n_steps=1000000 wandb.enabled=true wandb.name=\"${algo}_Hopper-v5_seed${seed}\" wandb.tags=\"[Maszyna1,MuJoCo,$algo]\"" >> /tmp/m1_jobs.txt
+            echo "uv run python entry_point.py algorithm=$algo seed=$seed env.id=Ant-v5 eval_env.id=Ant-v5 n_steps=1000000 wandb.enabled=true wandb.name=\"${algo}_Ant-v5_seed${seed}\" wandb.tags=\"[Maszyna1,MuJoCo,$algo]\"" >> /tmp/m1_jobs.txt
           done
-          echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=dropout seed=$seed env.id=Hopper-v5 eval_env.id=Hopper-v5 n_steps=1000000 wandb.enabled=true wandb.name=\"sc_erl_dropout_Hopper-v5_seed${seed}\" wandb.tags=\"[Maszyna1,MuJoCo,sc_erl,dropout]\"" >> /tmp/m1_jobs.txt
-          echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=ensemble seed=$seed env.id=Hopper-v5 eval_env.id=Hopper-v5 n_steps=1000000 wandb.enabled=true wandb.name=\"sc_erl_ensemble_Hopper-v5_seed${seed}\" wandb.tags=\"[Maszyna1,MuJoCo,sc_erl,ensemble]\"" >> /tmp/m1_jobs.txt
-          echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=random seed=$seed env.id=Hopper-v5 eval_env.id=Hopper-v5 n_steps=1000000 wandb.enabled=true wandb.name=\"sc_erl_random_Hopper-v5_seed${seed}\" wandb.tags=\"[Maszyna1,MuJoCo,sc_erl,random]\"" >> /tmp/m1_jobs.txt
+          echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=dropout seed=$seed env.id=Ant-v5 eval_env.id=Ant-v5 n_steps=1000000 wandb.enabled=true wandb.name=\"sc_erl_dropout_Ant-v5_seed${seed}\" wandb.tags=\"[Maszyna1,MuJoCo,sc_erl,dropout]\"" >> /tmp/m1_jobs.txt
+          echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=ensemble seed=$seed env.id=Ant-v5 eval_env.id=Ant-v5 n_steps=1000000 wandb.enabled=true wandb.name=\"sc_erl_ensemble_Ant-v5_seed${seed}\" wandb.tags=\"[Maszyna1,MuJoCo,sc_erl,ensemble]\"" >> /tmp/m1_jobs.txt
+          echo "uv run python entry_point.py algorithm=sc_erl surrogate.mode=random seed=$seed env.id=Ant-v5 eval_env.id=Ant-v5 n_steps=1000000 wandb.enabled=true wandb.name=\"sc_erl_random_Ant-v5_seed${seed}\" wandb.tags=\"[Maszyna1,MuJoCo,sc_erl,random]\"" >> /tmp/m1_jobs.txt
         done
 
-        # Uruchomienie (dostosuj -P pod liczbę rdzeni CPU maszyny 1)
+        # Uruchomienie (RTX 3090: 16 vCPUs -> optymalne -P 4 ze względu na ciężkie środowisko fizyczne Ant-v5)
         cat /tmp/m1_jobs.txt | shuf | xargs -I {} -P 4 bash -c '{}'
         rm -f /tmp/m1_jobs.txt
 
