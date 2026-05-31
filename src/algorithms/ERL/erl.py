@@ -3,7 +3,7 @@ import numpy as np
 import gymnasium as gym
 from collections import deque
 
-from common.modules import Actor, Critic
+from modules.deep_modules import Actor, Critic
 from common.reply_buffer import Buffer
 from common.evolution_module import EvolutionModule
 from common.wandb_logger import WandbLogger

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import copy
 from common.reply_buffer import Buffer
-from common.modules import Critic, Actor
+from modules.deep_modules import Critic, Actor
 
 
 class MCDropout:

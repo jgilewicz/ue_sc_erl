@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 import gymnasium as gym
 
-from common.modules import StochasticActor, StateCritic
+from modules.deep_modules import StochasticActor, StateCritic
 from common.reply_buffer import RolloutBuffer, PPOTransition
 from common.wandb_logger import WandbLogger
 

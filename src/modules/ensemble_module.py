@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from common.modules import Critic
+from modules.deep_modules import Critic
 
 
 class EnsembleModule(nn.Module):

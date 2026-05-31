@@ -5,7 +5,7 @@ import copy
 import numpy as np
 import torch
 
-from common.modules import Actor, Critic
+from modules.deep_modules import Actor, Critic
 from common.utils import get_flat_params, set_flat_params
 
 

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from common.reply_buffer import Buffer, Transition
 import gymnasium as gym
 import numpy as np
-from common.modules import Actor, Critic
+from modules.deep_modules import Actor, Critic
 import math
 
 
