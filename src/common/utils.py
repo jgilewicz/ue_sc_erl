@@ -90,7 +90,7 @@ def print_sc_erl_debug_summary(
     )
     print(f"  Evolution       steps: {format_steps(evo_steps)}")
     if (
-        surrogate_mode in ("dropout", "ensemble")
+        surrogate_mode in ("dropout", "ensemble", "evidential")
         and uncertainty_mean is not None
         and uncertainty_max is not None
         and uncertainty_threshold is not None

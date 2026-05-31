@@ -268,19 +268,19 @@ def SC_ERL(
                     uncertainty_mean=(
                         surrogate_controller.last_uncertainty_mean
                         if surrogate_mode
-                        in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
+                        in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE, SurrogateMode.EVIDENTIAL)
                         else None
                     ),
                     uncertainty_max=(
                         surrogate_controller.last_uncertainty_max
                         if surrogate_mode
-                        in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
+                        in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE, SurrogateMode.EVIDENTIAL)
                         else None
                     ),
                     uncertainty_threshold=(
                         surrogate_controller.last_uncertainty_threshold
                         if surrogate_mode
-                        in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE)
+                        in (SurrogateMode.DROPOUT, SurrogateMode.ENSEMBLE, SurrogateMode.EVIDENTIAL)
                         else None
                     ),
                     surrogate_mode=surrogate_mode.name.lower(),
@@ -302,6 +302,7 @@ def SC_ERL(
             if surrogate_mode in (
                 SurrogateMode.DROPOUT,
                 SurrogateMode.ENSEMBLE,
+                SurrogateMode.EVIDENTIAL,
             ):
                 metrics.update(
                     {
