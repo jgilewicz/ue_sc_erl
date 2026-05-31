@@ -11,7 +11,7 @@ eval_env:
   id: FetchPush-v4
 wandb:
   enabled: true
-  project: evo_rl
-  entity: new_tests
+  project: new_tests
+  entity: evo_rl
   name: null
   tags: []

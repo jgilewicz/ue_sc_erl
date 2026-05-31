@@ -103,7 +103,17 @@ def print_sc_erl_debug_summary(
 
 
 def get_flat_params(module: nn.Module) -> torch.Tensor:
-    return torch.cat([p.detach().view(-1) for p in module.parameters()])
+    params = []
+    excluded_params = set()
+    for m in module.modules():
+        if isinstance(m, (nn.LayerNorm, nn.BatchNorm1d, nn.BatchNorm2d)):
+            for p in m.parameters():
+                excluded_params.add(p)
+                
+    for p in module.parameters():
+        if p not in excluded_params:
+            params.append(p.detach().view(-1))
+    return torch.cat(params)
 
 
 def set_flat_params(
@@ -111,10 +121,17 @@ def set_flat_params(
 ) -> None:
     flat_params = flat_params.to(device)
     offset = 0
+    excluded_params = set()
+    for m in module.modules():
+        if isinstance(m, (nn.LayerNorm, nn.BatchNorm1d, nn.BatchNorm2d)):
+            for p in m.parameters():
+                excluded_params.add(p)
+                
     for param in module.parameters():
-        elements = param.numel()
-        param.data.copy_(flat_params[offset : offset + elements].view_as(param))
-        offset += elements
+        if param not in excluded_params:
+            elements = param.numel()
+            param.data.copy_(flat_params[offset : offset + elements].view_as(param))
+            offset += elements
 
 
 def soft_update(target: nn.Module, source: nn.Module, tau: float) -> None:

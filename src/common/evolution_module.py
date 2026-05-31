@@ -32,15 +32,50 @@ class EvolutionModule:
         child = copy.deepcopy(parent).to(self.device)
         flat_params = get_flat_params(child)
         noise = torch.zeros_like(flat_params)
+        
+        # Sparse fractional mutation: only mutate mutation_prob fraction of the weights
         mask = torch.from_numpy(rng.random(flat_params.numel()) < mutation_prob).to(
             flat_params.device
         )
+        
         if mask.any():
-            noise_values = torch.from_numpy(
-                rng.normal(0.0, mutation_std, size=int(mask.sum().item()))
-            ).to(flat_params.device, dtype=flat_params.dtype)
-            noise[mask] = noise_values
-        set_flat_params(child, flat_params + noise, device=self.device)
+            mutated_size = int(mask.sum().item())
+            rands = rng.random(mutated_size)
+            noise_values = torch.zeros(mutated_size, device=flat_params.device, dtype=flat_params.dtype)
+            flat_params_mutated = flat_params[mask]
+            
+            # Super mutation (5% of mutated weights), Reset (5%), Normal mutation (90%)
+            super_mut_mask = rands < 0.05
+            reset_mask = (rands >= 0.05) & (rands < 0.10)
+            normal_mut_mask = rands >= 0.10
+            
+            # 1. Normal mutation: proportional to parameter magnitude W
+            if np.any(normal_mut_mask):
+                normal_noise = torch.from_numpy(
+                    rng.normal(0.0, mutation_std, size=int(normal_mut_mask.sum()))
+                ).to(flat_params.device, dtype=flat_params.dtype)
+                noise_values[normal_mut_mask] = normal_noise * flat_params_mutated[normal_mut_mask]
+                
+            # 2. Super mutation: 10x strength, proportional to parameter magnitude W
+            if np.any(super_mut_mask):
+                super_noise = torch.from_numpy(
+                    rng.normal(0.0, 10.0 * mutation_std, size=int(super_mut_mask.sum()))
+                ).to(flat_params.device, dtype=flat_params.dtype)
+                noise_values[super_mut_mask] = super_noise * flat_params_mutated[super_mut_mask]
+                
+            # 3. Reset mutation: reset parameter to standard normal N(0, 1)
+            if np.any(reset_mask):
+                reset_noise = torch.from_numpy(
+                    rng.normal(0.0, 1.0, size=int(reset_mask.sum()))
+                ).to(flat_params.device, dtype=flat_params.dtype)
+                noise_values[reset_mask] = reset_noise - flat_params_mutated[reset_mask]
+                
+            # Clamping parameters within hard limits to avoid explosion [-1e6, 1e6]
+            new_params = torch.clamp(flat_params + noise.index_copy(0, torch.where(mask)[0], noise_values), -1e6, 1e6)
+            set_flat_params(child, new_params, device=self.device)
+        else:
+            set_flat_params(child, flat_params, device=self.device)
+            
         return child
 
     def evolve(
@@ -90,5 +125,6 @@ class EvolutionModule:
         if not population:
             return
 
-        best_index = int(np.argmax(fitnesses)) if fitnesses else 0
-        population[best_index].load_state_dict(copy.deepcopy(actor.state_dict()))
+        # Overwrite the worst individual in the population with the RL actor to protect the elites
+        worst_index = int(np.argmin(fitnesses)) if fitnesses else 0
+        population[worst_index].load_state_dict(copy.deepcopy(actor.state_dict()))
