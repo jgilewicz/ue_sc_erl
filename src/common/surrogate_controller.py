@@ -79,6 +79,11 @@ class SurrogateController:
         self._running_fitness_max: float | None = None
         self._fitness_ema_alpha: float = 0.05  # slow-moving average (< 0.1)
 
+        # EMA-based running bounds of real environment returns.
+        # Used to scale surrogate fitnesses to the same scale as real rewards.
+        self._running_real_min: float | None = None
+        self._running_real_max: float | None = None
+
     def generation_based_control(
         self,
         population: list[nn.Module],
@@ -167,17 +172,32 @@ class SurrogateController:
             surrogate_fitnesses = surrogate_fitness(
                 population, self.critic, self.replay_buffer, self.device, self.k
             )
+            # Scale them to real returns range!
+            scaled_fitnesses = self._normalize_surrogate_fitness(surrogate_fitnesses)
+
+            # Determine elites based on previous generation's fitnesses
+            elite_indices = set()
+            if self.last_fitness and len(self.last_fitness) == len(population):
+                pop_size = len(population)
+                elite_count = max(2 if pop_size >= 2 else 1, int(pop_size * elite_ratio))
+                ranked_indices = sorted(
+                    range(pop_size),
+                    key=lambda idx: self.last_fitness[idx],
+                    reverse=True
+                )
+                elite_indices = set(ranked_indices[:elite_count])
+
             fitnesses = []
             steps = 0
             any_surrogate = False
 
             for i, policy in enumerate(population):
-                if self.rng.random() > self.omega:
+                if i in elite_indices or self.rng.random() > self.omega:
                     fit, s = self._real_evaluation([policy], env, evaluate_episodes)
                     fitnesses.append(fit[0])
                     steps += s
                 else:
-                    fitnesses.append(surrogate_fitnesses[i])
+                    fitnesses.append(scaled_fitnesses[i])
                     any_surrogate = True
 
             surrogate = any_surrogate
@@ -202,24 +222,43 @@ class SurrogateController:
             )
             threshold = self._update_uncertainty_metrics()
 
-            # Normalise raw Q-values to a stable range before LCB computation
-            surrogate_fitnesses = self._normalize_surrogate_fitness(surrogate_fitnesses)
+            # Compute LCB in Q-scale first
+            lcb_q_values = []
+            for i in range(len(population)):
+                mu_q = surrogate_fitnesses[i]
+                sigma_q = self.last_uncertainty[i]
+                lcb_q = mu_q - (self.beta * sigma_q)
+                lcb_q_values.append(lcb_q)
+
+            # Scale to real returns range
+            scaled_fitnesses = self._normalize_surrogate_fitness(lcb_q_values)
+
+            # Determine elites based on previous generation's fitnesses
+            elite_indices = set()
+            if self.last_fitness and len(self.last_fitness) == len(population):
+                pop_size = len(population)
+                elite_count = max(2 if pop_size >= 2 else 1, int(pop_size * elite_ratio))
+                ranked_indices = sorted(
+                    range(pop_size),
+                    key=lambda idx: self.last_fitness[idx],
+                    reverse=True
+                )
+                elite_indices = set(ranked_indices[:elite_count])
 
             fitnesses = []
             steps = 0
             any_surrogate = False
 
             for i, policy in enumerate(population):
-                mu_q = surrogate_fitnesses[i]
                 sigma_q = self.last_uncertainty[i]
 
-                if sigma_q > threshold or self.rng.random() < self.epsilon:
+                # ELITE PROTECTION: elites are always evaluated in real env!
+                if i in elite_indices or sigma_q > threshold or self.rng.random() < self.epsilon:
                     fit, s = self._real_evaluation([policy], env, evaluate_episodes)
                     fitnesses.append(fit[0])
                     steps += s
                 else:
-                    lcb_fitness = mu_q - (self.beta * sigma_q)
-                    fitnesses.append(lcb_fitness)
+                    fitnesses.append(scaled_fitnesses[i])
                     any_surrogate = True
 
             surrogate = any_surrogate
@@ -253,24 +292,43 @@ class SurrogateController:
 
             threshold = self._update_uncertainty_metrics()
 
-            # Normalise raw Q-values to a stable range before LCB computation
-            surrogate_fitnesses = self._normalize_surrogate_fitness(surrogate_fitnesses)
+            # Compute LCB in Q-scale first
+            lcb_q_values = []
+            for i in range(len(population)):
+                mu_q = surrogate_fitnesses[i]
+                sigma_q = self.last_uncertainty[i]
+                lcb_q = mu_q - (self.beta * sigma_q)
+                lcb_q_values.append(lcb_q)
+
+            # Scale to real returns range
+            scaled_fitnesses = self._normalize_surrogate_fitness(lcb_q_values)
+
+            # Determine elites based on previous generation's fitnesses
+            elite_indices = set()
+            if self.last_fitness and len(self.last_fitness) == len(population):
+                pop_size = len(population)
+                elite_count = max(2 if pop_size >= 2 else 1, int(pop_size * elite_ratio))
+                ranked_indices = sorted(
+                    range(pop_size),
+                    key=lambda idx: self.last_fitness[idx],
+                    reverse=True
+                )
+                elite_indices = set(ranked_indices[:elite_count])
 
             fitnesses = []
             steps = 0
             any_surrogate = False
 
             for i, policy in enumerate(population):
-                mu_q = surrogate_fitnesses[i]
                 sigma_q = self.last_uncertainty[i]
 
-                if sigma_q > threshold or self.rng.random() < self.epsilon:
+                # ELITE PROTECTION: elites are always evaluated in real env!
+                if i in elite_indices or sigma_q > threshold or self.rng.random() < self.epsilon:
                     fit, s = self._real_evaluation([policy], env, evaluate_episodes)
                     fitnesses.append(fit[0])
                     steps += s
                 else:
-                    lcb_fitness = mu_q - (self.beta * sigma_q)
-                    fitnesses.append(lcb_fitness)
+                    fitnesses.append(scaled_fitnesses[i])
                     any_surrogate = True
 
             surrogate = any_surrogate
@@ -308,24 +366,43 @@ class SurrogateController:
 
             threshold = self._update_uncertainty_metrics()
 
-            # Normalise raw Q-values
-            surrogate_fitnesses = self._normalize_surrogate_fitness(surrogate_fitnesses)
+            # Compute LCB in Q-scale first
+            lcb_q_values = []
+            for i in range(len(population)):
+                mu_q = surrogate_fitnesses[i]
+                sigma_q = self.last_uncertainty[i]
+                lcb_q = mu_q - (self.beta * sigma_q)
+                lcb_q_values.append(lcb_q)
+
+            # Scale to real returns range
+            scaled_fitnesses = self._normalize_surrogate_fitness(lcb_q_values)
+
+            # Determine elites based on previous generation's fitnesses
+            elite_indices = set()
+            if self.last_fitness and len(self.last_fitness) == len(population):
+                pop_size = len(population)
+                elite_count = max(2 if pop_size >= 2 else 1, int(pop_size * elite_ratio))
+                ranked_indices = sorted(
+                    range(pop_size),
+                    key=lambda idx: self.last_fitness[idx],
+                    reverse=True
+                )
+                elite_indices = set(ranked_indices[:elite_count])
 
             fitnesses = []
             steps = 0
             any_surrogate = False
 
             for i, policy in enumerate(population):
-                mu_q = surrogate_fitnesses[i]
                 sigma_q = self.last_uncertainty[i]
 
-                if sigma_q > threshold or self.rng.random() < self.epsilon:
+                # ELITE PROTECTION: elites are always evaluated in real env!
+                if i in elite_indices or sigma_q > threshold or self.rng.random() < self.epsilon:
                     fit, s = self._real_evaluation([policy], env, evaluate_episodes)
                     fitnesses.append(fit[0])
                     steps += s
                 else:
-                    lcb_fitness = mu_q - (self.beta * sigma_q)
-                    fitnesses.append(lcb_fitness)
+                    fitnesses.append(scaled_fitnesses[i])
                     any_surrogate = True
 
             surrogate = any_surrogate
@@ -351,6 +428,24 @@ class SurrogateController:
 
         return population, fitnesses, steps
 
+    def _update_real_bounds(self, real_values: list[float]):
+        if not real_values:
+            return
+        batch_min = float(np.min(real_values))
+        batch_max = float(np.max(real_values))
+        alpha = self._fitness_ema_alpha
+
+        if self._running_real_min is None:
+            self._running_real_min = batch_min
+            self._running_real_max = batch_max
+        else:
+            self._running_real_min = (
+                alpha * batch_min + (1 - alpha) * self._running_real_min
+            )
+            self._running_real_max = (
+                alpha * batch_max + (1 - alpha) * self._running_real_max
+            )
+
     def _real_evaluation(
         self, population, env, evaluate_episodes, store_in_buffer: bool = True
     ):
@@ -369,6 +464,9 @@ class SurrogateController:
             )
             fitnesses.append(fitness)
             total_steps += steps
+
+        # Update real bounds whenever we have real evaluations!
+        self._update_real_bounds(fitnesses)
 
         return fitnesses, total_steps
 
@@ -397,19 +495,15 @@ class SurrogateController:
 
     def _normalize_surrogate_fitness(self, raw_fitnesses: list[float]) -> list[float]:
         """
-        Normalises raw Q-value surrogate fitnesses to [-1, 1] using EMA-tracked
-        running min/max bounds, then applies a tanh soft-clip as a final safety net.
-
-        EMA update rule:  ema = alpha * batch_min/max + (1 - alpha) * ema
-        - Low alpha (0.05) → slow-moving bounds, robust to transient spikes.
-        - Normalised fitness is rescaled back to the original EMA range so that
-          the LCB penalty (beta * sigma_q) operates in a consistent unit space.
+        Normalises raw Q-value surrogate fitnesses (or LCB values) to [-1, 1] using EMA-tracked
+        running min/max bounds, then applies a tanh soft-clip as a final safety net, and
+        rescales the values to the exact scale and range of the real environment returns.
         """
         alpha = self._fitness_ema_alpha
         batch_min = float(np.min(raw_fitnesses))
         batch_max = float(np.max(raw_fitnesses))
 
-        # Warm-start on first call
+        # Warm-start on first call for Q-values
         if self._running_fitness_min is None:
             self._running_fitness_min = batch_min
             self._running_fitness_max = batch_max
@@ -425,11 +519,18 @@ class SurrogateController:
         span = hi - lo
 
         if span < 1e-6:
-            # Degenerate case: all fitnesses nearly identical — return zeros
-            return [0.0] * len(raw_fitnesses)
+            span = 1e-6
 
         # Map to [-1, 1], then soft-clip via tanh to bound extreme outliers
         normalised = [np.tanh((f - lo) / span * 2.0 - 1.0) for f in raw_fitnesses]
-        # Rescale back to the EMA range so LCB penalty is in original units
-        rescaled = [n * (span / 2.0) + (lo + hi) / 2.0 for n in normalised]
+
+        # Rescale to the range of real environment returns
+        if self._running_real_min is None or self._running_real_max is None:
+            lo_real, hi_real = lo, hi
+        else:
+            lo_real, hi_real = self._running_real_min, self._running_real_max
+
+        span_real = hi_real - lo_real
+        # Map from [-1, 1] to [lo_real, hi_real]
+        rescaled = [((n + 1.0) / 2.0) * span_real + lo_real for n in normalised]
         return rescaled
