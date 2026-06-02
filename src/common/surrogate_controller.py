@@ -200,10 +200,8 @@ class SurrogateController:
         surrogate_critic.eval()
 
         if self.surrogate_mode == SurrogateMode.RANDOM:
-            scaled_fitnesses = self._normalize_surrogate_fitness(
-                surrogate_fitness(
-                    population, surrogate_critic, self.replay_buffer, self.device, self.k
-                )
+            scaled_fitnesses = surrogate_fitness(
+                population, surrogate_critic, self.replay_buffer, self.device, self.k
             )
 
             fitnesses = []
@@ -242,7 +240,7 @@ class SurrogateController:
                 lcb_q = float(np.clip(mu_q - self.beta * sigma_q, a_min=-5000.0, a_max=None))
                 lcb_q_values.append(lcb_q)
 
-            scaled_fitnesses = self._normalize_surrogate_fitness(lcb_q_values)
+            scaled_fitnesses = lcb_q_values
 
             fitnesses = []
             steps = 0
@@ -285,7 +283,7 @@ class SurrogateController:
                 lcb_q = float(np.clip(mu_q - self.beta * sigma_q, a_min=-5000.0, a_max=None))
                 lcb_q_values.append(lcb_q)
 
-            scaled_fitnesses = self._normalize_surrogate_fitness(lcb_q_values)
+            scaled_fitnesses = lcb_q_values
 
             fitnesses = []
             steps = 0
@@ -331,7 +329,7 @@ class SurrogateController:
                 lcb_q = float(np.clip(mu_q - self.beta * sigma_q, a_min=-5000.0, a_max=None))
                 lcb_q_values.append(lcb_q)
 
-            scaled_fitnesses = self._normalize_surrogate_fitness(lcb_q_values)
+            scaled_fitnesses = lcb_q_values
 
             fitnesses = []
             steps = 0
@@ -350,7 +348,7 @@ class SurrogateController:
             self.last_fitness = fitnesses
 
         self.last_surrogate_ratio = surrogate_count / len(population) if population else 0.0
-        used_real_eval = surrogate_count == 0
+        used_real_eval = surrogate_count < len(population)
 
         population, new_elitists, unselect_indices = self.evolution_module.evolve(
             population=population,
@@ -367,7 +365,7 @@ class SurrogateController:
         self.last_unselect_indices = unselect_indices
 
         # Post-evolution elite injection (Global Anchor): restore best-ever real actor into worst slot
-        if self.best_real_actor_state is not None and fitnesses:
+        if used_real_eval and self.best_real_actor_state is not None and fitnesses:
             worst_index = int(np.argmin(fitnesses))
             if worst_index not in new_elitists:
                 target = worst_index
