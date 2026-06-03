@@ -51,7 +51,7 @@ class EnsembleModule(nn.Module):
         self, states: torch.Tensor, actions: torch.Tensor, target_q: torch.Tensor
     ) -> torch.Tensor:
         total_loss = torch.tensor(0.0, device=states.device)
-        mask_prob = 0.8
+        mask_prob = 0.5
 
         target_q = target_q.view(-1, 1)
 

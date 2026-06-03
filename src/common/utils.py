@@ -78,6 +78,8 @@ def print_sc_erl_debug_summary(
     uncertainty_max: float | None = None,
     uncertainty_threshold: float | None = None,
     surrogate_mode: str | None = None,
+    raw_sigma_mean: float | None = None,
+    raw_sigma_max: float | None = None,
 ) -> None:
     print(f"[SC-ERL] Generation {generation} | Steps {format_steps(total_steps)}")
     print(
@@ -96,9 +98,13 @@ def print_sc_erl_debug_summary(
         and uncertainty_threshold is not None
     ):
         print(
-            f"  Uncertainty     mean: {uncertainty_mean:8.4f} | max: {uncertainty_max:8.4f} | "
+            f"  CV uncertainty  mean: {uncertainty_mean:8.4f} | max: {uncertainty_max:8.4f} | "
             f"threshold: {uncertainty_threshold:8.4f}"
         )
+        if raw_sigma_mean is not None and raw_sigma_max is not None:
+            print(
+                f"  Raw sigma       mean: {raw_sigma_mean:8.4f} | max: {raw_sigma_max:8.4f}"
+            )
     print()
 
 

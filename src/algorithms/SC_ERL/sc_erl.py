@@ -284,6 +284,11 @@ def SC_ERL(
 
         if generation % 10 == 0 or total_steps >= n_steps:
             if debug:
+                _is_uncertainty_mode = surrogate_mode in (
+                    SurrogateMode.DROPOUT,
+                    SurrogateMode.ENSEMBLE,
+                    SurrogateMode.EVIDENTIAL,
+                )
                 print_sc_erl_debug_summary(
                     generation=generation,
                     total_steps=total_steps,
@@ -296,35 +301,25 @@ def SC_ERL(
                     critic_loss=critic_loss,
                     uncertainty_mean=(
                         surrogate_controller.last_uncertainty_mean
-                        if surrogate_mode
-                        in (
-                            SurrogateMode.DROPOUT,
-                            SurrogateMode.ENSEMBLE,
-                            SurrogateMode.EVIDENTIAL,
-                        )
-                        else None
+                        if _is_uncertainty_mode else None
                     ),
                     uncertainty_max=(
                         surrogate_controller.last_uncertainty_max
-                        if surrogate_mode
-                        in (
-                            SurrogateMode.DROPOUT,
-                            SurrogateMode.ENSEMBLE,
-                            SurrogateMode.EVIDENTIAL,
-                        )
-                        else None
+                        if _is_uncertainty_mode else None
                     ),
                     uncertainty_threshold=(
                         surrogate_controller.last_uncertainty_threshold
-                        if surrogate_mode
-                        in (
-                            SurrogateMode.DROPOUT,
-                            SurrogateMode.ENSEMBLE,
-                            SurrogateMode.EVIDENTIAL,
-                        )
-                        else None
+                        if _is_uncertainty_mode else None
                     ),
                     surrogate_mode=surrogate_mode.name.lower(),
+                    raw_sigma_mean=(
+                        surrogate_controller.last_raw_sigma_mean
+                        if _is_uncertainty_mode else None
+                    ),
+                    raw_sigma_max=(
+                        surrogate_controller.last_raw_sigma_max
+                        if _is_uncertainty_mode else None
+                    ),
                 )
 
         if logger is not None:
@@ -351,6 +346,8 @@ def SC_ERL(
                         "uncertainty_mean": surrogate_controller.last_uncertainty_mean,
                         "uncertainty_max": surrogate_controller.last_uncertainty_max,
                         "uncertainty_threshold": surrogate_controller.last_uncertainty_threshold,
+                        "raw_sigma_mean": surrogate_controller.last_raw_sigma_mean,
+                        "raw_sigma_max": surrogate_controller.last_raw_sigma_max,
                     }
                 )
 

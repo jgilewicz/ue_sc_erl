@@ -93,6 +93,8 @@ class SurrogateController:
         self.last_elite_indices: list[int] = []
         self.last_unselect_indices: list[int] = []
         self.last_surrogate_ratio: float = 0.0
+        self.last_raw_sigma_mean: float = 0.0
+        self.last_raw_sigma_max: float = 0.0
 
     def generation_based_control(
         self,
@@ -453,6 +455,8 @@ class SurrogateController:
             self.last_uncertainty_mean = 0.0
             self.last_uncertainty_max = 0.0
             self.last_uncertainty_threshold = 0.0
+            self.last_raw_sigma_mean = 0.0
+            self.last_raw_sigma_max = 0.0
             return 0.0
 
         cv_arr = np.nan_to_num(
@@ -467,6 +471,18 @@ class SurrogateController:
         self.last_uncertainty_mean = batch_mean
         self.last_uncertainty_max = float(np.max(cv_arr))
 
+        # Raw sigma stats (absolute, before CV normalisation) for diagnostic logging
+        if self.last_uncertainty:
+            raw = np.nan_to_num(
+                np.array(self.last_uncertainty, dtype=np.float64),
+                nan=0.0, posinf=1e3, neginf=0.0,
+            )
+            self.last_raw_sigma_mean = float(np.mean(raw))
+            self.last_raw_sigma_max = float(np.max(raw))
+        else:
+            self.last_raw_sigma_mean = 0.0
+            self.last_raw_sigma_max = 0.0
+
         alpha = self._uncertainty_ema_alpha
         if self.ema_cv_mean is None:
             self.ema_cv_mean = batch_mean
@@ -475,7 +491,7 @@ class SurrogateController:
             self.ema_cv_mean = alpha * batch_mean + (1 - alpha) * self.ema_cv_mean
             self.ema_cv_std = alpha * batch_std + (1 - alpha) * self.ema_cv_std
 
-        threshold = self.ema_cv_mean + 2.0 * self.ema_cv_std
+        threshold = self.ema_cv_mean + 1.5 * self.ema_cv_std
         self.last_uncertainty_threshold = threshold
 
         return threshold
