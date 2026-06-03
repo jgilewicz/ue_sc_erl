@@ -170,7 +170,7 @@ class SurrogateController:
                         self.last_uncertainty = uncertainties
 
                     cv_values = [
-                        sigma / (abs(mu) + 1.0)
+                        sigma / (abs(mu)**0.5 + 1.0)
                         for sigma, mu in zip(self.last_uncertainty, mu_values)
                     ]
                     self._update_uncertainty_metrics(cv_values)
@@ -246,7 +246,7 @@ class SurrogateController:
                 )
             )
             cv_values = [
-                sigma / (abs(mu) + 1.0)
+                sigma / (abs(mu)**0.5 + 1.0)
                 for sigma, mu in zip(self.last_uncertainty, surrogate_fitnesses)
             ]
             threshold = self._update_uncertainty_metrics(cv_values)
@@ -292,7 +292,7 @@ class SurrogateController:
 
             self.last_uncertainty = uncertainties
             cv_values = [
-                sigma / (abs(mu) + 1.0)
+                sigma / (abs(mu)**0.5 + 1.0)
                 for sigma, mu in zip(self.last_uncertainty, surrogate_fitnesses)
             ]
             threshold = self._update_uncertainty_metrics(cv_values)
@@ -341,7 +341,7 @@ class SurrogateController:
 
             self.last_uncertainty = uncertainties
             cv_values = [
-                sigma / (abs(mu) + 1.0)
+                sigma / (abs(mu)**0.5 + 1.0)
                 for sigma, mu in zip(self.last_uncertainty, surrogate_fitnesses)
             ]
             threshold = self._update_uncertainty_metrics(cv_values)
