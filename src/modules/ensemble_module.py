@@ -51,11 +51,18 @@ class EnsembleModule(nn.Module):
         self, states: torch.Tensor, actions: torch.Tensor, target_q: torch.Tensor
     ) -> torch.Tensor:
         total_loss = torch.tensor(0.0, device=states.device)
-        
+        mask_prob = 0.8
+
         target_q = target_q.view(-1, 1)
 
         for critic in self.critics:
             current_q = critic(states, actions).view(-1, 1)
-            total_loss += F.smooth_l1_loss(current_q, target_q)
+
+            mask = torch.bernoulli(torch.full_like(current_q, mask_prob))
+
+            loss = F.smooth_l1_loss(current_q, target_q, reduction='none')
+
+            masked_loss = (loss * mask).sum() / (mask.sum() + 1e-8)
+            total_loss += masked_loss
 
         return total_loss
