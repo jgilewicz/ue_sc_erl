@@ -81,6 +81,10 @@ class SurrogateController:
         self._running_real_min: float | None = None
         self._running_real_max: float | None = None
 
+        self.ema_sigma_mean: float | None = None
+        self.ema_sigma_std: float | None = None
+        self._uncertainty_ema_alpha: float = 0.2
+
         # Tracking the best real-evaluated actor to ensure elite protection
         self.best_real_actor_state = None
         self.best_real_fitness = -float("inf")
@@ -129,7 +133,7 @@ class SurrogateController:
                         )
                     elif self.surrogate_mode == SurrogateMode.EVIDENTIAL:
                         k_batch = min(self.k, len(self.replay_buffer))
-                        batch = self.replay_buffer.sample_latest(batch_size=k_batch)
+                        batch = self.replay_buffer.sample(batch_size=k_batch)
                         obs = batch["state"].to(self.device)
                         self.critic.eval()
                         uncertainties = []
@@ -147,7 +151,7 @@ class SurrogateController:
                         self.last_uncertainty = uncertainties
                     else:
                         k_batch = min(self.k, len(self.replay_buffer))
-                        batch = self.replay_buffer.sample_latest(batch_size=k_batch)
+                        batch = self.replay_buffer.sample(batch_size=k_batch)
                         obs = batch["state"].to(self.device)
                         self.critic.eval()
                         uncertainties = []
@@ -240,7 +244,7 @@ class SurrogateController:
                 lcb_q = float(np.clip(mu_q - self.beta * sigma_q, a_min=-5000.0, a_max=None))
                 lcb_q_values.append(lcb_q)
 
-            scaled_fitnesses = lcb_q_values
+            scaled_fitnesses = self._normalize_surrogate_fitness(lcb_q_values)
 
             fitnesses = []
             steps = 0
@@ -260,7 +264,7 @@ class SurrogateController:
 
         elif self.surrogate_mode == SurrogateMode.ENSEMBLE:
             k = min(self.k, len(self.replay_buffer))
-            batch = self.replay_buffer.sample_latest(batch_size=k)
+            batch = self.replay_buffer.sample(batch_size=k)
             obs = batch["state"].to(self.device)
 
             surrogate_fitnesses = []
@@ -283,7 +287,7 @@ class SurrogateController:
                 lcb_q = float(np.clip(mu_q - self.beta * sigma_q, a_min=-5000.0, a_max=None))
                 lcb_q_values.append(lcb_q)
 
-            scaled_fitnesses = lcb_q_values
+            scaled_fitnesses = self._normalize_surrogate_fitness(lcb_q_values)
 
             fitnesses = []
             steps = 0
@@ -303,7 +307,7 @@ class SurrogateController:
 
         elif self.surrogate_mode == SurrogateMode.EVIDENTIAL:
             k_batch = min(self.k, len(self.replay_buffer))
-            batch = self.replay_buffer.sample_latest(batch_size=k_batch)
+            batch = self.replay_buffer.sample(batch_size=k_batch)
             obs = batch["state"].to(self.device)
 
             surrogate_fitnesses = []
@@ -329,7 +333,7 @@ class SurrogateController:
                 lcb_q = float(np.clip(mu_q - self.beta * sigma_q, a_min=-5000.0, a_max=None))
                 lcb_q_values.append(lcb_q)
 
-            scaled_fitnesses = lcb_q_values
+            scaled_fitnesses = self._normalize_surrogate_fitness(lcb_q_values)
 
             fitnesses = []
             steps = 0
@@ -441,11 +445,20 @@ class SurrogateController:
             neginf=0.0,
         )
 
-        mean_uncertainty = float(np.mean(uncertainties))
-        self.last_uncertainty_mean = mean_uncertainty
+        batch_mean = float(np.mean(uncertainties))
+        batch_std = float(np.std(uncertainties))
+        self.last_uncertainty_mean = batch_mean
         self.last_uncertainty_max = float(np.max(uncertainties))
 
-        threshold = float(np.percentile(uncertainties, self.percentile))
+        alpha = self._uncertainty_ema_alpha
+        if self.ema_sigma_mean is None:
+            self.ema_sigma_mean = batch_mean
+            self.ema_sigma_std = batch_std
+        else:
+            self.ema_sigma_mean = alpha * batch_mean + (1 - alpha) * self.ema_sigma_mean
+            self.ema_sigma_std = alpha * batch_std + (1 - alpha) * self.ema_sigma_std
+
+        threshold = self.ema_sigma_mean + 2.0 * self.ema_sigma_std
         self.last_uncertainty_threshold = threshold
 
         return threshold

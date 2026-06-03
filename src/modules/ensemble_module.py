@@ -56,6 +56,6 @@ class EnsembleModule(nn.Module):
 
         for critic in self.critics:
             current_q = critic(states, actions).view(-1, 1)
-            total_loss += F.mse_loss(current_q, target_q)
+            total_loss += F.smooth_l1_loss(current_q, target_q)
 
         return total_loss

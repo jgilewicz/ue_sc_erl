@@ -643,6 +643,194 @@ def build_correlation_table_latex(env_id, corr_data):
 
 
 # ==========================================
+# NEMENYI RANKING ANALYSIS
+# ==========================================
+
+# Critical values q_alpha for Nemenyi test, alpha=0.05 (two-tailed)
+_NEMENYI_Q = {
+    2: 1.960, 3: 2.344, 4: 2.569, 5: 2.728, 6: 2.850,
+    7: 2.949, 8: 3.031, 9: 3.102, 10: 3.164,
+}
+
+
+def compute_rankings_and_nemenyi(all_stable_values, environments):
+    """Rank methods within each environment and run Friedman + Nemenyi tests.
+
+    Parameters
+    ----------
+    all_stable_values : dict[env_id, dict[method, list[float]]]
+    environments      : list[str]
+
+    Returns
+    -------
+    rank_matrix  : dict[method, dict[env_id, int]]   1 = best
+    avg_ranks    : dict[method, float]
+    cd           : float | None    Nemenyi critical difference at alpha=0.05
+    friedman_p   : float | None
+    """
+    methods = sorted({m for sv in all_stable_values.values() for m in sv})
+    rank_matrix = {m: {} for m in methods}
+
+    for env_id in environments:
+        sv = all_stable_values.get(env_id, {})
+        method_perf = {}
+        for m in methods:
+            vals = [v for v in sv.get(m, []) if not np.isnan(v)]
+            if vals:
+                method_perf[m] = np.mean(vals)
+        if len(method_perf) < 2:
+            continue
+        for rank, m in enumerate(
+            sorted(method_perf, key=method_perf.__getitem__, reverse=True), 1
+        ):
+            rank_matrix[m][env_id] = rank
+
+    avg_ranks = {}
+    for m in methods:
+        ranks = [rank_matrix[m][e] for e in environments if e in rank_matrix[m]]
+        avg_ranks[m] = float(np.mean(ranks)) if ranks else float("nan")
+
+    # Friedman test uses only environments where every method has a rank
+    common_envs = [
+        e for e in environments
+        if all(e in rank_matrix[m] for m in methods)
+    ]
+    friedman_p = cd = None
+    if len(common_envs) >= 2 and len(methods) >= 2:
+        rank_lists = [[rank_matrix[m][e] for e in common_envs] for m in methods]
+        try:
+            _, friedman_p = stats.friedmanchisquare(*rank_lists)
+        except Exception:
+            pass
+        k, N = len(methods), len(common_envs)
+        q = _NEMENYI_Q.get(k) or _NEMENYI_Q[max(k2 for k2 in _NEMENYI_Q if k2 <= min(k, 10))]
+        cd = q * np.sqrt(k * (k + 1) / (6 * N))
+
+    return rank_matrix, avg_ranks, cd, friedman_p
+
+
+def build_nemenyi_ranking_table_latex(all_stable_values, environments):
+    rank_matrix, avg_ranks, cd, friedman_p = compute_rankings_and_nemenyi(
+        all_stable_values, environments
+    )
+
+    method_order = [
+        "ppo", "td3", "ddpg", "erl", "sc_erl_random",
+        "sc_erl_ensemble", "sc_erl_dropout", "sc_erl_evidential",
+    ]
+    present = [m for m in method_order if m in avg_ranks]
+    sorted_methods = sorted(present, key=lambda m: avg_ranks.get(m, float("inf")))
+    best_method = sorted_methods[0] if sorted_methods else None
+    best_avg = avg_ranks.get(best_method, float("nan")) if best_method else float("nan")
+
+    def short_env(e):
+        return e.replace("-v5", "").replace("-v4", "").replace("-v3", "")
+
+    env_cols = " & ".join(f"\\textbf{{{short_env(e)}}}" for e in environments)
+
+    caption = (
+        "Per-environment method rankings (1~=~best) and average rank. "
+        "Bold rows are within Nemenyi CD of the best average rank (not significantly different). "
+    )
+    if friedman_p is not None:
+        caption += f"Friedman test: $p = {friedman_p:.4f}$. "
+    if cd is not None:
+        caption += f"Nemenyi CD~$= {cd:.3f}$ ($\\alpha = 0.05$)."
+
+    tex = "\\begin{table}[htbp]\n\\centering\n"
+    tex += f"\\caption{{{caption}}}\n"
+    tex += "\\label{tab:nemenyi_rankings}\n"
+    tex += f"\\begin{{tabular}}{{l{'c' * (len(environments) + 1)}}}\n\\toprule\n"
+    tex += f"\\textbf{{Method}} & {env_cols} & \\textbf{{Avg.~Rank}} \\\\\n\\midrule\n"
+
+    for m in sorted_methods:
+        label = METHOD_LABELS.get(m, m)
+        cells = [
+            "--" if rank_matrix[m].get(env_id) is None else str(rank_matrix[m][env_id])
+            for env_id in environments
+        ]
+        avg = avg_ranks.get(m, float("nan"))
+        avg_str = f"{avg:.2f}" if not np.isnan(avg) else "--"
+
+        within_cd = (
+            cd is not None
+            and not np.isnan(avg)
+            and not np.isnan(best_avg)
+            and abs(avg - best_avg) <= cd
+        )
+        if within_cd:
+            tex += f"\\textbf{{{label}}} & {' & '.join(cells)} & \\textbf{{{avg_str}}} \\\\\n"
+        else:
+            tex += f"{label} & {' & '.join(cells)} & {avg_str} \\\\\n"
+
+    tex += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+    return tex
+
+
+def generate_nemenyi_cd_plot(avg_ranks, cd, out_path):
+    """Horizontal CD diagram: methods ranked left-to-right, CD bracket shown."""
+    present = {m: r for m, r in avg_ranks.items() if not np.isnan(r)}
+    if not present:
+        return
+
+    sorted_methods = sorted(present, key=present.__getitem__)
+    n = len(sorted_methods)
+    fig, ax = plt.subplots(figsize=(8, max(2.5, 0.55 * n) + 1.2))
+
+    y_pos = {m: i for i, m in enumerate(sorted_methods)}
+    best_r = present[sorted_methods[0]]
+
+    for m in sorted_methods:
+        r = present[m]
+        color = METHOD_COLORS.get(m, "#333333")
+        label = METHOD_LABELS.get(m, m)
+        y = y_pos[m]
+        ax.scatter(r, y, color=color, s=70, zorder=4)
+        ax.text(r + 0.05, y, f"{r:.2f}", va="center", fontsize=8.5, color=color)
+        ax.text(-0.1, y, label, ha="right", va="center", fontsize=9)
+
+    # CD bracket above the plot
+    if cd is not None:
+        y_top = n + 0.3
+        ax.annotate(
+            "",
+            xy=(best_r + cd, y_top),
+            xytext=(best_r, y_top),
+            arrowprops=dict(arrowstyle="<->", color="black", lw=1.5),
+        )
+        ax.text(
+            best_r + cd / 2, y_top + 0.25,
+            f"CD = {cd:.3f}",
+            ha="center", va="bottom", fontsize=9, fontweight="bold",
+        )
+        # Underline methods within CD of best (not significantly different)
+        within = [m for m in sorted_methods if abs(present[m] - best_r) <= cd]
+        if len(within) > 1:
+            xs = [present[m] for m in within]
+            ax.plot(
+                [min(xs) - 0.12, max(xs) + 0.12],
+                [-0.6, -0.6],
+                color="#555555", lw=3.5, alpha=0.35, solid_capstyle="round",
+            )
+            ax.text(
+                np.mean(xs), -0.95,
+                "no significant difference",
+                ha="center", fontsize=8, color="#555555", style="italic",
+            )
+
+    ax.set_xlabel("Average Rank (lower = better)", labelpad=10)
+    ax.set_title("Nemenyi Critical Difference Diagram", fontweight="bold", pad=14)
+    ax.set_ylim(-1.4, n + 0.9)
+    ax.set_xlim(0.5, max(present.values()) + 1.0)
+    ax.set_yticks([])
+    ax.grid(axis="x", color="#eeeeee", linestyle="-")
+    sns.despine(ax=ax, left=True)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+# ==========================================
 # MAIN EXECUTION PIPELINE
 # ==========================================
 def main():
@@ -672,10 +860,13 @@ def main():
         "\\begin{document}\n\\maketitle\n\\tableofcontents\n\\newpage\n"
     )
 
+    all_stable_values = {}  # env_id -> {method -> [final vals]}
+
     for env_id in environments:
         print(f"Processing environment: {env_id}...")
         merged_data = load_environment_data(env_id, base_dir)
         stable_values = get_stable_final_values(merged_data)
+        all_stable_values[env_id] = stable_values
 
         se_path = os.path.join(output_dir, f"{env_id}_sample_efficiency.png")
         sa_path = os.path.join(output_dir, f"{env_id}_surrogate_analysis.png")
@@ -738,6 +929,33 @@ def main():
                 f"\\end{{figure}}\n"
             )
 
+        latex_document += "\\newpage\n"
+
+    # ---- Global Nemenyi ranking section ----
+    if len(environments) >= 2:
+        print("\nComputing global Nemenyi ranking table...")
+        _, avg_ranks, cd, friedman_p = compute_rankings_and_nemenyi(
+            all_stable_values, environments
+        )
+        cd_path = os.path.join(output_dir, "nemenyi_cd_diagram.png")
+        try:
+            generate_nemenyi_cd_plot(avg_ranks, cd, cd_path)
+            has_cd = True
+        except Exception as e:
+            print(f"Warning: Could not generate CD diagram: {e}")
+            has_cd = False
+
+        latex_document += "\\section{Global Ranking Analysis (Nemenyi)}\n"
+        latex_document += build_nemenyi_ranking_table_latex(all_stable_values, environments)
+        if has_cd:
+            latex_document += (
+                "\\begin{figure}[H]\n\\centering\n"
+                f"  \\includegraphics[width=0.72\\textwidth]{{nemenyi_cd_diagram.png}}\n"
+                "  \\caption{Critical Difference diagram. "
+                "Methods connected by the grey bar are not significantly different "
+                "from the best-ranked method at $\\alpha = 0.05$.}\n"
+                "\\end{figure}\n"
+            )
         latex_document += "\\newpage\n"
 
     latex_document += "\\end{document}\n"
