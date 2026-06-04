@@ -25,7 +25,7 @@ tasks:
       - |
         set -euo pipefail
         ENVS=("Hopper-v5" "Swimmer-v5")
-        ALGOS=("sc_erl:dropout" "sc_erl:ensemble" "sc_erl:evidential" "sc_erl:random" "erl:")
+        ALGOS=("sc_erl:dropout" "sc_erl:ensemble" "sc_erl:evidential" "sc_erl:random")
         SEEDS=(0 1 2 3 4)
         mkdir -p logs
 
