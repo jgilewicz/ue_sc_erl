@@ -73,6 +73,7 @@ fi
 export WANDB_API_KEY="INSERT_YOUR_WANDB_API_KEY_HERE"
 export WANDB_MODE="offline"
 export WANDB_DIR="${PROJECT_DIR}/wandb_logs"
+export LD_LIBRARY_PATH="${PROJECT_DIR}/.venv/lib/python3.12/site-packages/torch/lib:${LD_LIBRARY_PATH:-}"
 mkdir -p logs "${WANDB_DIR}"
 
 python entry_point.py \
