@@ -1,26 +1,26 @@
 """
 Optuna hyperparameter tuning for SC-ERL — two-stage approach.
 
-Stage 1  (--mode random):
-  Tunes shared surrogate params + TD3 backbone params using the cheapest
-  surrogate mode (random coin-flip, no uncertainty estimation overhead).
+Stage 1  (--mode dropout):
+  Tunes shared surrogate params (beta, omega, k, epsilon, mad_k), TD3 backbone
+  params, and dropout-specific params (dropout_p, mc_samples) together.
+  dropout is used as Stage 1 because it actually exercises k and mad_k via
+  real uncertainty estimation — random mode does not.
 
-Stage 2  (--mode dropout|ensemble|evidential):
-  Loads the best shared params from a Stage 1 study (--base-study) and fixes
-  them, then tunes only the mode-specific params.
+Stage 2  (--mode evidential|ensemble):
+  Loads the shared params from the best dropout trial (--base-study) and fixes
+  them, then tunes only the mode-specific params (lam / k_ensembles).
 
 Usage
 -----
-# Stage 1 — shared + TD3 backbone params
-python optim/tune_sc_erl.py --env HalfCheetah-v5 --mode random --n-trials 30
+# Stage 1 — shared + backbone + dropout params
+python optim/tune_sc_erl.py --env HalfCheetah-v5 --mode dropout --n-trials 30
 
-# Stage 2 — method-specific params only
-python optim/tune_sc_erl.py --env HalfCheetah-v5 --mode dropout  --n-trials 20 \\
-    --base-study optuna_random_HalfCheetah-v5.db
-python optim/tune_sc_erl.py --env HalfCheetah-v5 --mode ensemble --n-trials 20 \\
-    --base-study optuna_random_HalfCheetah-v5.db
+# Stage 2 — evidential and ensemble (parallel)
 python optim/tune_sc_erl.py --env HalfCheetah-v5 --mode evidential --n-trials 20 \\
-    --base-study optuna_random_HalfCheetah-v5.db
+    --base-study optuna_dropout_HalfCheetah-v5.db
+python optim/tune_sc_erl.py --env HalfCheetah-v5 --mode ensemble  --n-trials 20 \\
+    --base-study optuna_dropout_HalfCheetah-v5.db
 """
 
 import argparse
@@ -33,6 +33,19 @@ import optuna
 import yaml
 
 SC_ERL_CFG = pathlib.Path("configs/algorithm/sc_erl.yaml")
+
+# Params tuned in Stage 1 (dropout) that are shared across all modes.
+# Stage 2 (evidential/ensemble) inherits only these — not dropout-specific ones.
+SHARED_PARAM_KEYS = {
+    "surrogate.beta",
+    "surrogate.omega",
+    "surrogate.k",
+    "surrogate.epsilon",
+    "surrogate.mad_k",
+    "rl.policy_noise",
+    "rl.noise_clip",
+    "rl.policy_delay",
+}
 
 # ---------------------------------------------------------------------------
 # YAML patching helpers
@@ -65,7 +78,7 @@ def restore_yaml(original: str) -> None:
 # ---------------------------------------------------------------------------
 
 def suggest_shared_params(trial: optuna.Trial) -> dict:
-    """Shared surrogate params — tuned in Stage 1 (random mode)."""
+    """Shared surrogate params — tuned in Stage 1 (dropout mode)."""
     return {
         "surrogate.beta": trial.suggest_float("surrogate.beta", 0.1, 10.0, log=True),
         "surrogate.omega": trial.suggest_float("surrogate.omega", 0.3, 0.9),
@@ -87,7 +100,7 @@ def suggest_backbone_params(trial: optuna.Trial, backbone: str) -> dict:
 
 
 def suggest_mode_params(trial: optuna.Trial, mode: str) -> dict:
-    """Mode-specific params — tuned in Stage 2."""
+    """Mode-specific params."""
     if mode == "dropout":
         return {
             "surrogate.dropout_p": trial.suggest_float("surrogate.dropout_p", 0.05, 0.4),
@@ -101,17 +114,22 @@ def suggest_mode_params(trial: optuna.Trial, mode: str) -> dict:
         return {
             "surrogate.lam": trial.suggest_float("surrogate.lam", 0.01, 1.0, log=True),
         }
-    return {}  # random mode — no mode-specific params
+    return {}
 
 
 def load_base_params(base_study_path: str) -> dict:
-    """Load best trial params from a Stage 1 SQLite study."""
+    """Load shared params from the best trial of a Stage 1 (dropout) study.
+
+    Only SHARED_PARAM_KEYS are returned — dropout-specific params (dropout_p,
+    mc_samples) are intentionally excluded so Stage 2 modes tune freely.
+    """
     storage = f"sqlite:///{base_study_path}"
     summaries = optuna.get_all_study_summaries(storage=storage)
     if not summaries:
         raise ValueError(f"No studies found in {base_study_path}")
     study = optuna.load_study(study_name=summaries[0].study_name, storage=storage)
-    return study.best_trial.params
+    all_params = study.best_trial.params
+    return {k: v for k, v in all_params.items() if k in SHARED_PARAM_KEYS}
 
 
 # ---------------------------------------------------------------------------
@@ -186,8 +204,8 @@ def parse_args():
     p.add_argument(
         "--mode",
         required=True,
-        choices=["random", "dropout", "ensemble", "evidential"],
-        help="Stage 1: random — tunes shared+backbone params. Stage 2: dropout/ensemble/evidential",
+        choices=["dropout", "ensemble", "evidential"],
+        help="Stage 1: dropout — tunes shared+backbone+dropout params. Stage 2: evidential/ensemble",
     )
     p.add_argument(
         "--backbone",
@@ -245,8 +263,8 @@ def main():
 
     base_params = None
     if args.base_study:
-        if args.mode == "random":
-            print("WARNING: --base-study is ignored for --mode random (Stage 1)")
+        if args.mode == "dropout":
+            print("WARNING: --base-study is ignored for --mode dropout (Stage 1)")
         else:
             base_params = load_base_params(args.base_study)
             print(f"Loaded {len(base_params)} shared params from {args.base_study}")
@@ -257,7 +275,7 @@ def main():
         else optuna.samplers.RandomSampler(seed=args.seed)
     )
 
-    stage = "1 (shared+backbone)" if args.mode == "random" else f"2 ({args.mode}-specific)"
+    stage = "1 (shared+backbone+dropout)" if args.mode == "dropout" else f"2 ({args.mode}-specific)"
     print(f"Stage      : {stage}")
     print(f"Study      : {study_name}")
     print(f"Storage    : {storage}")

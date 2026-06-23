@@ -4,13 +4,13 @@
 # SC-ERL Optuna Hyperparameter Tuning — SLURM Two-Stage Jobs
 # =============================================================================
 #
-# Stage 1 (single job — tune shared + TD3 backbone params):
-#   TARGET_ENV=HalfCheetah-v5 sbatch slurm_tune.sh
+# Stage 1 (single job — tune shared + backbone + dropout params):
+#   TARGET_ENV=HalfCheetah-v5 sbatch optim/slurm_tune.sh
 #
-# Stage 2 (array job — tune method-specific params, one task per mode):
+# Stage 2 (array job — tune evidential + ensemble, one task each):
 #   TARGET_ENV=HalfCheetah-v5 \
-#   BASE_STUDY=optuna_random_HalfCheetah-v5.db \
-#   sbatch --array=0-2 slurm_tune.sh
+#   BASE_STUDY=optuna_dropout_HalfCheetah-v5.db \
+#   sbatch --array=0-1 optim/slurm_tune.sh
 #
 # Optional env var overrides:
 #   TARGET_ENV   MuJoCo env id (default: HalfCheetah-v5)
@@ -46,16 +46,16 @@ BASE_STUDY="${BASE_STUDY:-}"
 # Stage routing
 # ==========================================
 if [[ -z "$BASE_STUDY" ]]; then
-  # Stage 1: single job, mode=random
-  MODE="random"
-  STAGE="1 (shared+backbone)"
+  # Stage 1: single job, mode=dropout
+  MODE="dropout"
+  STAGE="1 (shared+backbone+dropout)"
 else
-  # Stage 2: array job, map task id → mode
-  MODES=("dropout" "ensemble" "evidential")
+  # Stage 2: array job 0-1, map task id → mode
+  MODES=("evidential" "ensemble")
   TASK_ID="${SLURM_ARRAY_TASK_ID:-0}"
   MODE="${MODES[$TASK_ID]}"
   if [[ -z "$MODE" ]]; then
-    echo "ERROR: SLURM_ARRAY_TASK_ID=${TASK_ID} out of range (0-2)"
+    echo "ERROR: SLURM_ARRAY_TASK_ID=${TASK_ID} out of range (0-1)"
     exit 1
   fi
   STAGE="2 (${MODE}-specific)"
