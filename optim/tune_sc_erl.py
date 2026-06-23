@@ -255,6 +255,12 @@ def main():
         n_trials=args.n_trials,
     )
 
+    completed = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+    if not completed:
+        print(f"\nNo completed trials — all {len(study.trials)} trials were pruned.")
+        print("Check subprocess errors above.")
+        return
+
     best = study.best_trial
     print("\n" + "=" * 60)
     print(f"Best trial : #{best.number}  eval_reward = {best.value:.4f}")
