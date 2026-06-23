@@ -55,6 +55,7 @@ echo "Task ${TASK_ID} | ${ALGO} ${SURROGATE_MODE:-N/A} | ${ENV} | seed ${SEED}"
 
 source /usr/local/sbin/modules.sh
 module load Python/3.12.3-GCCcore-13.3.0
+module load CUDA/12.6.0
 
 PROJECT_DIR="/home/jakgil6519/workspace/ue_evo_rl"
 cd "${PROJECT_DIR}" || {
