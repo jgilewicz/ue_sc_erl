@@ -4,7 +4,16 @@ evolution:
   rl_injection_interval: 1
   eval_trials: 5
 surrogate:
-  epsilon: 0.03
-  mad_k: 2.5
+  epsilon: 0.14156970268030378
+  mad_k: 2.483105089723013
+  beta: 0.4324803290528772
+  omega: 0.548557796708802
+  k: 1024
+  dropout_p: 0.25158127344466275
+  mc_samples: 48
 warmup:
   warmup_steps: 25000
+rl:
+  policy_noise: 0.2061557963757782
+  noise_clip: 0.5616240267333499
+  policy_delay: 1

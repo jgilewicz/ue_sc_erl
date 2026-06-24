@@ -3,3 +3,15 @@ evolution:
   elite_ratio: 0.1
   rl_injection_interval: 10
   eval_trials: 1
+surrogate:
+  beta: 4.580831928198315
+  omega: 0.6202363094202951
+  k: 5120
+  epsilon: 0.1733522593633426
+  mad_k: 3.3162501263523962
+  dropout_p: 0.3308807050967496
+  mc_samples: 43
+rl:
+  policy_noise: 0.1262317975407825
+  noise_clip: 0.37280902018051365
+  policy_delay: 4
