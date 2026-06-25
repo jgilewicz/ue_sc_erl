@@ -117,7 +117,6 @@ def CrossQ(
         buffer_size=1_000_000,
         learning_starts=warmup_steps,
         batch_size=batch_size,
-        tau=tau,
         gamma=gamma,
         gradient_steps=gradient_steps,
         policy_delay=policy_delay,

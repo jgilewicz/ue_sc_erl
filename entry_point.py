@@ -56,7 +56,7 @@ def make_env(env_id: str, backend: str = "auto") -> gym.Env:
         backend == "auto" and any(env_id.startswith(p) for p in _FANCY_GYM_PREFIXES)
     )
     if needs_fancy:
-        import fancy_gym  # noqa: F401 — registers DMC/fancy envs with gymnasium
+        import shimmy  # noqa: F401 — registers DMC envs with gymnasium
     env = gym.make(env_id)
     if isinstance(env.observation_space, gym.spaces.Dict):
         env = gym.wrappers.FlattenObservation(env)
