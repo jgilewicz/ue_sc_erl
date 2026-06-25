@@ -30,6 +30,13 @@ def normalize_env_id(env_id):
     return re.sub(r"(?i)walker(?:2d)?", "Walker2d", env_id)
 
 
+def display_env_id(env_id: str) -> str:
+    """Human-readable env name for plot titles and table captions."""
+    e = re.sub(r"^dm_control_", "DMC/", env_id)
+    e = re.sub(r"-v\d+$", "", e)
+    return e
+
+
 def get_env_file_variants(env_id):
     if not re.search(r"(?i)walker", env_id):
         return [env_id]
@@ -47,12 +54,16 @@ METHOD_COLORS = {
     "td3": "#cc78bc",
     "ddpg": "#56b4e9",
     "sc_erl_random": "#949494",
+    "sac": "#e377c2",
+    "crossq": "#bcbd22",
 }
 
 METHOD_LABELS = {
     "ppo": "PPO (Baseline)",
     "td3": "TD3 (Baseline)",
     "ddpg": "DDPG (Baseline)",
+    "sac": "SAC (Baseline)",
+    "crossq": "CrossQ (Baseline)",
     "erl": "ERL (Baseline)",
     "sc_erl_ensemble": "SC-ERL (Ensemble) [Ours]",
     "sc_erl_dropout": "SC-ERL (Dropout) [Ours]",
@@ -61,6 +72,18 @@ METHOD_LABELS = {
 }
 
 PROPOSED_METHODS = ["sc_erl_ensemble", "sc_erl_dropout", "sc_erl_evidential"]
+
+SC_ERL_VARIANTS = ["sc_erl_random", "sc_erl_dropout", "sc_erl_ensemble", "sc_erl_evidential"]
+
+METHOD_ORDER_BARS = [
+    "ppo", "ddpg", "td3", "sac", "crossq", "erl",
+    "sc_erl_random", "sc_erl_dropout", "sc_erl_ensemble", "sc_erl_evidential",
+]
+
+BUDGET_CUTOFFS = [200_000, 500_000, 1_000_000]
+BUDGET_LABELS = ["200k", "500k", "1M"]
+# Alpha levels for 200k / 500k / 1M — lighter shade = smaller budget
+BUDGET_ALPHAS = [0.35, 0.65, 1.0]
 
 
 def parse_column_header(col_name, env_id):
@@ -739,6 +762,8 @@ def build_summary_table_latex(env_id, base_dir="."):
         "ppo",
         "td3",
         "ddpg",
+        "sac",
+        "crossq",
         "erl",
         "sc_erl_random",
         "sc_erl_ensemble",
@@ -775,7 +800,7 @@ def build_summary_table_latex(env_id, base_dir="."):
 
 
 def build_significance_table_latex(env_id, stable_values):
-    baselines = ["ppo", "td3", "ddpg", "erl", "sc_erl_random"]
+    baselines = ["ppo", "td3", "ddpg", "sac", "crossq", "erl", "sc_erl_random"]
 
     tex = "\\begin{table}[htbp]\n\\centering\n"
     tex += f"\\caption{{Statistical Significance Testing for \\texttt{{{
@@ -920,6 +945,8 @@ def build_nemenyi_ranking_table_latex(all_stable_values, environments):
         "ppo",
         "td3",
         "ddpg",
+        "sac",
+        "crossq",
         "erl",
         "sc_erl_random",
         "sc_erl_ensemble",
@@ -932,7 +959,7 @@ def build_nemenyi_ranking_table_latex(all_stable_values, environments):
     best_avg = avg_ranks.get(best_method, float("nan")) if best_method else float("nan")
 
     def short_env(e):
-        return e.replace("-v5", "").replace("-v4", "").replace("-v3", "")
+        return display_env_id(e)
 
     env_cols = " & ".join(f"\\textbf{{{short_env(e)}}}" for e in environments)
 
@@ -1050,8 +1077,194 @@ def generate_nemenyi_cd_plot(avg_ranks, cd, out_path):
     plt.close()
 
 
+def _interpolate_seed_to_grid(df, step_grid):
+    y_col = (
+        "eval_reward"
+        if "eval_reward" in df.columns and not df["eval_reward"].isna().all()
+        else None
+    )
+    if y_col is None or "total_steps" not in df.columns:
+        return None
+    tmp = df[["total_steps", y_col]].dropna().sort_values("total_steps")
+    if len(tmp) < 2:
+        return None
+    return np.interp(step_grid, tmp["total_steps"].values, tmp[y_col].values)
+
+
+def generate_auc_bar_chart(all_merged_data, environments, out_path):
+    """Plot A: normalized AUC grouped by budget cutoff, one subplot per env."""
+    from matplotlib.patches import Patch
+
+    n_envs = len(environments)
+    n_methods = len(METHOD_ORDER_BARS)
+    n_budgets = len(BUDGET_CUTOFFS)
+    group_width = 0.8
+    bar_w = group_width / n_methods
+    group_pos = np.arange(n_budgets)
+
+    with plt.rc_context({"font.family": "serif", "text.usetex": False}):
+        fig, axes = plt.subplots(1, n_envs, figsize=(20, 4), sharey=False)
+        axes = np.atleast_1d(axes)
+
+        for ax, env_id in zip(axes, environments):
+            merged_data = all_merged_data[env_id]
+
+            for m_idx, method in enumerate(METHOD_ORDER_BARS):
+                color = METHOD_COLORS.get(method, "#555555")
+                label = METHOD_LABELS.get(method, method)
+
+                for b_idx, cutoff in enumerate(BUDGET_CUTOFFS):
+                    step_grid = np.linspace(0, cutoff, 500)
+                    aucs = []
+                    if method in merged_data:
+                        for seed, df in merged_data[method].items():
+                            curve = _interpolate_seed_to_grid(df, step_grid)
+                            if curve is not None:
+                                span = step_grid[-1] - step_grid[0]
+                                aucs.append(float(np.trapezoid(curve, step_grid) / span))
+                    mean_auc = float(np.mean(aucs)) if aucs else np.nan
+                    std_auc = float(np.std(aucs)) if len(aucs) > 1 else 0.0
+
+                    x = group_pos[b_idx] - group_width / 2 + (m_idx + 0.5) * bar_w
+                    ax.bar(
+                        x, mean_auc if not np.isnan(mean_auc) else 0,
+                        width=bar_w * 0.92,
+                        color=color, alpha=BUDGET_ALPHAS[b_idx],
+                        edgecolor="none",
+                        label=label if b_idx == 0 else None,
+                    )
+                    if not np.isnan(mean_auc) and std_auc > 0:
+                        ax.errorbar(x, mean_auc, yerr=std_auc, fmt="none",
+                                    ecolor="#333333", elinewidth=0.8, capsize=2, capthick=0.8)
+
+            ax.set_xticks(group_pos)
+            ax.set_xticklabels(BUDGET_LABELS)
+            ax.set_xlabel("Budget Cutoff")
+            ax.set_ylabel("Normalized AUC")
+            ax.set_title(display_env_id(env_id), fontweight="bold")
+            ax.grid(axis="y", color="#eeeeee", linestyle="-", linewidth=0.5, zorder=0)
+            ax.set_axisbelow(True)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+        # Legend: method colors only — budget distinction is already encoded in
+        # x-axis group labels (200k / 500k / 1M) and alpha shading
+        handles, labels = axes[0].get_legend_handles_labels()
+        alpha_handles = [
+            Patch(facecolor="#888888", alpha=BUDGET_ALPHAS[i], edgecolor="none",
+                  label=BUDGET_LABELS[i])
+            for i in range(n_budgets)
+        ]
+        fig.legend(
+            handles + alpha_handles, labels + BUDGET_LABELS,
+            loc="lower center", ncol=n_methods + n_budgets,
+            frameon=True, framealpha=0.9, edgecolor="#cccccc",
+            fontsize=7.5, bbox_to_anchor=(0.5, -0.22),
+        )
+        plt.suptitle(
+            "Normalized Area Under Reward Curve at Three Step Budgets",
+            fontsize=13, fontweight="bold", y=1.01,
+        )
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=300, bbox_inches="tight")
+        plt.close()
+
+
+def generate_relative_improvement_plot(all_merged_data, environments, out_path):
+    """Plot C: per-step relative improvement of SC-ERL variants over ERL mean."""
+    n_envs = len(environments)
+    cap = 1_000_000
+    step_grid = np.linspace(0, cap, 500)
+
+    with plt.rc_context({"font.family": "serif", "text.usetex": False}):
+        fig, axes = plt.subplots(1, n_envs, figsize=(20, 4), sharey=False)
+        axes = np.atleast_1d(axes)
+
+        for ax, env_id in zip(axes, environments):
+            merged_data = all_merged_data[env_id]
+
+            erl_curves = [
+                _interpolate_seed_to_grid(df, step_grid)
+                for df in merged_data.get("erl", {}).values()
+            ]
+            erl_curves = [c for c in erl_curves if c is not None]
+            if not erl_curves:
+                ax.set_title(display_env_id(env_id), fontweight="bold")
+                ax.text(0.5, 0.5, "No ERL data", transform=ax.transAxes, ha="center")
+                continue
+            erl_mean = np.mean(erl_curves, axis=0)
+
+            # Floor denominator at the 70th percentile of |ERL| to avoid zero-crossing spikes
+            erl_abs = np.abs(erl_mean)
+            pos_vals = erl_abs[erl_abs > 0]
+            denom_floor = float(np.percentile(pos_vals, 70)) if len(pos_vals) else 1.0
+            denom = np.maximum(erl_abs, denom_floor)
+
+            ax.axhline(0, color="#444444", linestyle="--", linewidth=1.0,
+                       zorder=3, label="ERL (reference)")
+
+            all_mean_rels = []
+            plot_items = []
+            for method in SC_ERL_VARIANTS:
+                if method not in merged_data:
+                    continue
+                rel_curves = [
+                    (c - erl_mean) / denom
+                    for df in merged_data[method].values()
+                    if (c := _interpolate_seed_to_grid(df, step_grid)) is not None
+                ]
+                if not rel_curves:
+                    continue
+                rel_arr = np.array(rel_curves)
+                mean_rel = smooth_series(np.mean(rel_arr, axis=0), window=7)
+                std_rel = smooth_series(np.std(rel_arr, axis=0), window=7)
+                all_mean_rels.append(mean_rel)
+                plot_items.append((method, mean_rel, std_rel))
+
+            if all_mean_rels:
+                combined = np.concatenate(all_mean_rels)
+                y_lo = np.percentile(combined, 5)
+                y_hi = np.percentile(combined, 95)
+                pad = max((y_hi - y_lo) * 0.12, 0.05)
+                ax.set_ylim(y_lo - pad, y_hi + pad)
+
+            for method, mean_rel, std_rel in plot_items:
+                color = METHOD_COLORS.get(method, "#333333")
+                label = METHOD_LABELS.get(method, method)
+                is_proposed = method in PROPOSED_METHODS
+                ax.plot(step_grid, mean_rel, color=color, linewidth=1.8 if is_proposed else 1.2,
+                        linestyle="-" if is_proposed else "--", label=label, zorder=4)
+                ax.fill_between(step_grid, mean_rel - std_rel, mean_rel + std_rel,
+                                color=color, alpha=0.12, zorder=2)
+
+            ax.set_title(display_env_id(env_id), fontweight="bold")
+            ax.set_xlabel("Interaction Steps")
+            ax.set_ylabel("Relative Improvement over ERL")
+            ax.xaxis.set_major_formatter(
+                plt.FuncFormatter(lambda x, _: f"{x/1e6:.1f}M" if x >= 1e6 else f"{x/1e3:.0f}k")
+            )
+            ax.set_xlim(0, cap)
+            ax.grid(color="#eeeeee", linestyle="-", linewidth=0.5, zorder=0)
+            ax.set_axisbelow(True)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+        for ax in reversed(axes):
+            handles, labels = ax.get_legend_handles_labels()
+            if handles:
+                break
+        fig.legend(handles, labels, loc="lower center", ncol=len(SC_ERL_VARIANTS) + 1,
+                   frameon=True, framealpha=0.9, edgecolor="#cccccc",
+                   fontsize=8.5, bbox_to_anchor=(0.5, -0.22))
+        plt.suptitle("Relative Improvement over ERL Baseline",
+                     fontsize=13, fontweight="bold", y=1.01)
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=300, bbox_inches="tight")
+        plt.close()
+
+
 def main():
-    base_dir = "."
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     eval_reward_dir = os.path.join(base_dir, "eval_reward")
 
     if not os.path.exists(eval_reward_dir):
@@ -1083,11 +1296,13 @@ def main():
         "\\begin{document}\n\\maketitle\n\\tableofcontents\n\\newpage\n"
     )
 
-    all_stable_values = {}  # env_id -> {method -> [final vals]}
+    all_stable_values = {}   # env_id -> {method -> [final vals]}
+    all_merged_data = {}     # env_id -> merged_data (kept for cross-env plots)
 
     for env_id in environments:
         print(f"Processing environment: {env_id}...")
         merged_data = load_environment_data(env_id, base_dir)
+        all_merged_data[env_id] = merged_data
         stable_values = get_stable_final_values(merged_data)
         all_stable_values[env_id] = stable_values
 
@@ -1138,7 +1353,7 @@ def main():
             print(f"Warning: Could not generate ratio plot for {env_id}: {e}")
             has_rat = False
 
-        latex_document += f"\\section{{Environment Results: \\texttt{{{env_id}}}}}\n"
+        latex_document += f"\\section{{Environment Results: \\texttt{{{display_env_id(env_id)}}}}}\n"
 
         if has_se:
             latex_document += (
@@ -1231,6 +1446,57 @@ def main():
                 "from the best-ranked method at $\\alpha = 0.05$.}\n"
                 "\\end{figure}\n"
             )
+        latex_document += "\\newpage\n"
+
+    # ---- Cross-environment analysis (AUC + Relative Improvement) ----
+    if len(environments) >= 2:
+        print("\nGenerating cross-environment analysis plots...")
+        auc_path = os.path.join(output_dir, "auc_bar_chart.png")
+        rel_path = os.path.join(output_dir, "relative_improvement.png")
+
+        try:
+            generate_auc_bar_chart(all_merged_data, environments, auc_path)
+            has_auc = True
+        except Exception as e:
+            print(f"Warning: Could not generate AUC bar chart: {e}")
+            has_auc = False
+
+        try:
+            generate_relative_improvement_plot(all_merged_data, environments, rel_path)
+            has_rel = True
+        except Exception as e:
+            print(f"Warning: Could not generate relative improvement plot: {e}")
+            has_rel = False
+
+        latex_document += "\\section{Cross-Environment Performance Analysis}\n"
+
+        if has_auc:
+            latex_document += (
+                "\\subsection{Normalized Area Under Reward Curve}\n"
+                "\\begin{figure}[H]\n\\centering\n"
+                "  \\includegraphics[width=\\textwidth]{auc_bar_chart.png}\n"
+                "  \\caption{Normalized AUC (trapezoidal, divided by step budget) at three "
+                "environmental interaction budgets: 200k, 500k, and 1M steps. "
+                "Hatch patterns distinguish budgets within each method group; "
+                "error bars show $\\pm 1$ std across seeds.}\n"
+                "\\end{figure}\n\n"
+            )
+
+        if has_rel:
+            latex_document += (
+                "\\subsection{Relative Improvement over ERL Baseline}\n"
+                "\\begin{figure}[H]\n\\centering\n"
+                "  \\includegraphics[width=\\textwidth]{relative_improvement.png}\n"
+                "  \\caption{Per-step relative improvement of SC-ERL variants over the "
+                "mean ERL reward curve: $(r_{\\text{method}}(t) - r_{\\text{ERL}}(t))\\,/\\,"
+                "|r_{\\text{ERL}}(t)|$. "
+                "The denominator is floored at the 70th percentile of $|r_{\\text{ERL}}|$ "
+                "to suppress zero-crossing artefacts early in training. "
+                "Shaded band: $\\pm 1$ std across seeds. "
+                "Dashed grey line at $y=0$ marks the ERL level.}\n"
+                "\\end{figure}\n"
+            )
+
         latex_document += "\\newpage\n"
 
     latex_document += "\\end{document}\n"

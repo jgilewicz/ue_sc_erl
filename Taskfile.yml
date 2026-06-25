@@ -25,7 +25,7 @@ tasks:
       - uv run python entry_point.py algorithm={{.ALGO}} {{.CLI_ARGS}}
 
   run-parallel:
-    desc: "Run all 8 algorithms across all 5 MuJoCo environments (all 5 seeds) in parallel"
+    desc: "Run all 10 algorithms across all 5 MuJoCo environments (all 5 seeds) in parallel"
     vars:
       PARALLEL: '{{default "4" .PARALLEL}}'
     cmds:
@@ -41,6 +41,8 @@ tasks:
           "erl:"
           "ddpg:"
           "ppo:"
+          "sac:"
+          "crossq:"
         )
         SEEDS=(0 1 2 3 4)
         mkdir -p logs
@@ -78,22 +80,72 @@ tasks:
 
         generate_commands | shuf | xargs -P {{.PARALLEL}} -I CMD bash -c 'CMD >> logs/run_$$.out 2>&1'
 
-  tune:
-    desc: "Run Optuna tuning. Stage 1: task tune MODE=dropout. Stage 2: task tune MODE=evidential BASE_STUDY=optuna_dropout_<env>.db"
+  run-dmc:
+    desc: "Run sc_erl on a DMC dog task (e.g. task run-dmc ENV=dm_control/dog-stand-v0 MODE=ensemble)"
+    vars:
+      DMC_ENV: '{{default "dm_control/dog-stand-v0" .ENV}}'
+      DMC_MODE: '{{default "ensemble" .MODE}}'
     cmds:
       - |
-        BASE_STUDY_ARG=""
-        if [ -n "{{.BASE_STUDY}}" ]; then
-          BASE_STUDY_ARG="--base-study {{.BASE_STUDY}}"
-        fi
-        uv run python optim/tune_sc_erl.py \
-          --env {{.ENV}} \
-          --mode {{.MODE}} \
-          --backbone {{.BACKBONE}} \
-          --n-trials {{.N_TRIALS}} \
-          --n-steps {{.N_STEPS}} \
-          --sampler {{.SAMPLER}} \
-          $BASE_STUDY_ARG
+        SLUG=$(echo "{{.DMC_ENV}}" | tr '/' '_' | tr ':' '_')
+        RUN_NAME="sc_erl_{{.DMC_MODE}}_${SLUG}_seed{{default "0" .SEED}}"
+        uv run python entry_point.py \
+          algorithm=sc_erl \
+          surrogate.mode={{.DMC_MODE}} \
+          seed={{default "0" .SEED}} \
+          env.id={{.DMC_ENV}} \
+          eval_env.id={{.DMC_ENV}} \
+          env.backend=fancy_gym \
+          eval_env.backend=fancy_gym \
+          n_steps=1000000 \
+          wandb.enabled=true \
+          "wandb.name=${RUN_NAME}" \
+          "wandb.tags=[DMC,sc_erl,{{.DMC_MODE}}]" \
+          "hydra.run.dir=outputs/${RUN_NAME}"
+
+  run-parallel-dmc:
+    desc: "Run SC-ERL across all 5 DMC dog tasks (all 4 surrogate modes, 5 seeds) in parallel"
+    vars:
+      PARALLEL: '{{default "4" .PARALLEL}}'
+    cmds:
+      - |
+        set -euo pipefail
+        ENVS=(
+          "dm_control/dog-stand-v0"
+          "dm_control/dog-walk-v0"
+          "dm_control/dog-trot-v0"
+          "dm_control/dog-run-v0"
+          "dm_control/dog-fetch-v0"
+        )
+        MODES=("dropout" "ensemble" "evidential" "random")
+        SEEDS=(0 1 2 3 4)
+        mkdir -p logs
+
+        generate_commands() {
+          for ENV in "${ENVS[@]}"; do
+            SLUG=$(echo "${ENV}" | tr '/' '_' | tr ':' '_')
+            for MODE in "${MODES[@]}"; do
+              for SEED in "${SEEDS[@]}"; do
+                RUN_NAME="sc_erl_${MODE}_${SLUG}_seed${SEED}"
+                echo "uv run python entry_point.py \
+                  algorithm=sc_erl \
+                  surrogate.mode=${MODE} \
+                  seed=${SEED} \
+                  env.id=${ENV} \
+                  eval_env.id=${ENV} \
+                  env.backend=fancy_gym \
+                  eval_env.backend=fancy_gym \
+                  n_steps=1000000 \
+                  wandb.enabled=true \
+                  'wandb.name=${RUN_NAME}' \
+                  'wandb.tags=[DMC,sc_erl,${MODE}]' \
+                  'hydra.run.dir=outputs/${RUN_NAME}'"
+              done
+            done
+          done
+        }
+
+        generate_commands | shuf | xargs -P {{.PARALLEL}} -I CMD bash -c 'CMD >> logs/run_$$.out 2>&1'
 
   tune-stage1:
     desc: "Stage 1: tune shared + backbone + dropout params (e.g. task tune-stage1 ENV=Ant-v5)"
@@ -126,9 +178,12 @@ tasks:
   clean:
     desc: "Clean outputs, Hydra logs, training results, downloaded metrics, and compiled reports"
     cmds:
-      - rm -rf outputs .hydra results wandb *.pdf 
+      - rm -rf outputs .hydra results wandb logs *.pdf optuna_*.db
       - |
-        for folder in eval_reward rl_reward best_population_fitness avg_population_fitness uncertainty_mean uncertainty_max uncertainty_threshold critic_loss total_steps generation summary; do
+        for folder in eval_reward rl_reward best_population_fitness avg_population_fitness \
+                      uncertainty_mean uncertainty_max uncertainty_threshold \
+                      critic_loss total_steps generation summary \
+                      raw_sigma_mean raw_sigma_max results_output; do
           rm -rf plots_and_tests/$folder
         done
 

@@ -8,8 +8,10 @@ debug: false
 grad_clip_norm: 10.0
 env:
   id: Swimmer-v5
+  backend: auto  # auto | mujoco | fancy_gym
 eval_env:
   id: Swimmer-v5
+  backend: auto
 wandb:
   enabled: true
   project: ue_evo_rl_3

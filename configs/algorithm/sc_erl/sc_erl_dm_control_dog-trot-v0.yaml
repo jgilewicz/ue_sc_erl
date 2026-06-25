@@ -1,0 +1,17 @@
+# @package _global_
+# DMC dog-trot-v0 via fancy_gym
+env:
+  id: dm_control/dog-trot-v0
+  backend: fancy_gym
+eval_env:
+  id: dm_control/dog-trot-v0
+  backend: fancy_gym
+evolution:
+  elite_ratio: 0.2
+  rl_injection_interval: 1
+  eval_trials: 1
+surrogate:
+  epsilon: 0.1
+  mad_k: 2.0
+warmup:
+  warmup_steps: 100000

@@ -1,6 +1,6 @@
 wandb:
   entity: evo_rl
-  project: ue_evo_rl_2
+  project: ue_evo_rl_3
 
 algorithms:
   - sc_erl_evidential
@@ -11,11 +11,17 @@ algorithms:
   - erl
   - ppo
   - ddpg
+  - sac
+  - crossq
 
 environments:
+  - HalfCheetah-v5
   - Hopper-v5
   - Walker2d-v5
   - Ant-v5
   - Swimmer-v5
-  - HalfCheetah-v5
-
+  - dm_control_dog-stand-v0
+  - dm_control_dog-walk-v0
+  - dm_control_dog-trot-v0
+  - dm_control_dog-run-v0
+  - dm_control_dog-fetch-v0

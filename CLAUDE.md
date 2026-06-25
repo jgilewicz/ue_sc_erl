@@ -8,8 +8,10 @@ This file is the authoritative reference for AI-assisted development on this cod
 
 **SC-ERL** is a hybrid evolutionary + deep RL framework. A population of GA actors evolves alongside a TD3/DDPG RL agent sharing a replay buffer. The key novelty is a **surrogate controller** that uses epistemic uncertainty to gate whether each candidate policy needs a real environment rollout or can be scored cheaply via the critic.
 
-Algorithms: `sc_erl` (4 surrogate modes), `erl`, `td3`, `ddpg`, `ppo`.
-Environments: MuJoCo v5 (`HalfCheetah-v5`, `Hopper-v5`, `Walker2d-v5`, `Ant-v5`, `Swimmer-v5`).
+Algorithms: `sc_erl` (4 surrogate modes), `erl`, `td3`, `ddpg`, `ppo`, `sac` (SB3/PyTorch), `crossq` (SBX/JAX).
+Environments:
+- **MuJoCo v5**: `HalfCheetah-v5`, `Hopper-v5`, `Walker2d-v5`, `Ant-v5`, `Swimmer-v5`.
+- **DMC via fancy_gym**: `dm_control/dog-{stand,walk,trot,run,fetch}-v0`.
 
 ---
 
@@ -21,12 +23,16 @@ Environments: MuJoCo v5 (`HalfCheetah-v5`, `Hopper-v5`, `Walker2d-v5`, `Ant-v5`,
 | `src/algorithms/SC_ERL/sc_erl.py` | Main SC-ERL training loop |
 | `src/algorithms/ERL/erl.py` | Canonical ERL baseline |
 | `src/common/surrogate_controller.py` | Uncertainty gating, LCB scoring, EMA normalization |
-| `src/common/evolution_module.py` | Elite preservation, tournament selection, sparse mutation |
+| `src/modules/evolution_module.py` | Elite preservation, tournament selection, sparse mutation |
 | `src/modules/deep_modules.py` | Actor, Critic, StochasticActor, EvidentialCritic (NIG) |
 | `src/modules/ensemble_module.py` | Multi-critic ensemble |
 | `src/modules/mc_dropout_module.py` | MC Dropout runner |
 | `src/common/utils.py` | Huber loss, soft-update (`polyak_update`), weight flattening |
 | `src/common/reply_buffer.py` | Replay buffer (Transition namedtuple + circular buffer) |
+| `src/algorithms/SAC/sac.py` | SAC wrapper — SB3 model + WandB callback |
+| `src/algorithms/CrossQ/crossq.py` | CrossQ wrapper — SBX/JAX model + JAX device routing + WandB callback |
+| `configs/algorithm/sac.yaml` | SAC hyperparameters (`learning_rate`, `ent_coef`) |
+| `configs/algorithm/crossq.yaml` | CrossQ hyperparameters (`learning_rate`, `qf_learning_rate`, `gradient_steps`) |
 | `configs/algorithm/sc_erl.yaml` | SC-ERL hyperparameters (surrogate, evolution, rl, network) |
 | `configs/config.yaml` | Global defaults (seed, device, wandb, env) |
 
@@ -101,7 +107,11 @@ Q-values are normalized via EMA running bounds before LCB (EMA factor α=0.05), 
 
 ```bash
 task run ALGO=sc_erl CLI_ARGS="env.id=HalfCheetah-v5 surrogate.mode=ensemble"
-task run-parallel                    # Full matrix: 8 algos × 5 envs × 5 seeds
+task run ALGO=sac CLI_ARGS="env.id=HalfCheetah-v5"
+task run ALGO=crossq CLI_ARGS="env.id=HalfCheetah-v5"
+task run-parallel                    # Full matrix: 10 algos × 5 MuJoCo envs × 5 seeds
+task run-dmc ENV=dm_control/dog-stand-v0 MODE=ensemble SEED=0  # Single DMC run
+task run-parallel-dmc                # Full matrix: SC-ERL × 5 DMC dog envs × 4 modes × 5 seeds
 task report                          # Compile metrics, stats, PDF
 task clean                           # Wipe outputs/, results/, wandb/
 ```
@@ -125,3 +135,8 @@ All runs use `uv run python entry_point.py`. Do not invoke `entry_point.py` dire
 - No `fetch_wrappers.py` in active use — Fetch Robotics environments are not part of current experiments.
 - The `plots_and_tests/` pipeline reads from WandB; ensure runs are logged before generating reports.
 - `outputs/` and `results/` are gitignored; never commit experiment artifacts.
+- **fancy_gym backend**: `make_env()` in `entry_point.py` auto-detects DMC/fancy envs by `dm_control/`, `fancy/`, or `metaworld/` prefix and imports `fancy_gym` lazily. Set `env.backend=fancy_gym` explicitly to force it. Dog env-specific configs already set this.
+- **DMC config naming**: env-specific configs for DMC follow the sanitized slug convention — `dm_control/dog-stand-v0` → `sc_erl_dm_control_dog-stand-v0.yaml`.
+- **SLURM**: single `slurm_run_array.sh` handles both backends. Backend and algo matrix auto-detected from `TARGET_ENV` prefix (`dm_control/` → fancy_gym + 4 SC-ERL modes, 20 tasks; otherwise → MuJoCo + 10 algos, 50 tasks). Pass `--array=0-19` for DMC, `--array=0-49` for MuJoCo.
+- **SAC** wraps SB3 `SAC` (PyTorch). Shares `cfg.device` normally. No extra setup.
+- **CrossQ** wraps SBX `CrossQ` (JAX). `_configure_jax_device()` in `crossq.py` translates `torch.device` → JAX platform before model construction. MPS is not supported by JAX — falls back to CPU with a warning. GPU on the cluster requires `pip install -U "jax[cuda12]"` once inside the venv after `uv sync`. Do not pass `device=` to the SBX constructor; JAX picks it up globally via `jax.config`.

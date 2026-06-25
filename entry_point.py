@@ -11,8 +11,10 @@ from omegaconf import DictConfig, OmegaConf
 
 from common.surrogate_controller import SurrogateMode
 from common.wandb_logger import WandbLogger
+from algorithms.CrossQ import CrossQ
 from algorithms.ERL import ERL
 from algorithms.PPO import PPO
+from algorithms.SAC import SAC
 from algorithms.SC_ERL import SC_ERL
 from algorithms.TD3 import TD3
 from algorithms.DDPG import DDPG
@@ -46,7 +48,15 @@ def load_environment_specific_algorithm_cfg(cfg: DictConfig) -> DictConfig:
     return OmegaConf.merge(cfg, env_specific_cfg)
 
 
-def make_env(env_id: str) -> gym.Env:
+_FANCY_GYM_PREFIXES = ("dm_control/", "fancy/", "metaworld/", "dmc/")
+
+
+def make_env(env_id: str, backend: str = "auto") -> gym.Env:
+    needs_fancy = backend == "fancy_gym" or (
+        backend == "auto" and any(env_id.startswith(p) for p in _FANCY_GYM_PREFIXES)
+    )
+    if needs_fancy:
+        import fancy_gym  # noqa: F401 — registers DMC/fancy envs with gymnasium
     env = gym.make(env_id)
     if isinstance(env.observation_space, gym.spaces.Dict):
         env = gym.wrappers.FlattenObservation(env)
@@ -97,8 +107,8 @@ def main(cfg: DictConfig) -> None:
             population_size=cfg.evolution.population_size,
             buffer_size=cfg.buffer_size,
             rng=np.random.default_rng(seed=cfg.seed),
-            env=make_env(cfg.env.id),
-            eval_env=make_env(cfg.eval_env.id),
+            env=make_env(cfg.env.id, cfg.env.get("backend", "auto")),
+            eval_env=make_env(cfg.eval_env.id, cfg.eval_env.get("backend", "auto")),
             n_steps=cfg.n_steps,
             batch_size=cfg.batch_size,
             device=device,
@@ -128,8 +138,8 @@ def main(cfg: DictConfig) -> None:
         result = TD3(
             buffer_size=cfg.buffer_size,
             rng=np.random.default_rng(seed=cfg.seed),
-            env=make_env(cfg.env.id),
-            eval_env=make_env(cfg.eval_env.id),
+            env=make_env(cfg.env.id, cfg.env.get("backend", "auto")),
+            eval_env=make_env(cfg.eval_env.id, cfg.eval_env.get("backend", "auto")),
             n_steps=cfg.n_steps,
             batch_size=cfg.batch_size,
             device=device,
@@ -153,8 +163,8 @@ def main(cfg: DictConfig) -> None:
         result = DDPG(
             buffer_size=cfg.buffer_size,
             rng=np.random.default_rng(seed=cfg.seed),
-            env=make_env(cfg.env.id),
-            eval_env=make_env(cfg.eval_env.id),
+            env=make_env(cfg.env.id, cfg.env.get("backend", "auto")),
+            eval_env=make_env(cfg.eval_env.id, cfg.eval_env.get("backend", "auto")),
             n_steps=cfg.n_steps,
             batch_size=cfg.batch_size,
             device=device,
@@ -176,8 +186,8 @@ def main(cfg: DictConfig) -> None:
             population_size=cfg.evolution.population_size,
             buffer_size=cfg.buffer_size,
             rng=np.random.default_rng(seed=cfg.seed),
-            env=make_env(cfg.env.id),
-            eval_env=make_env(cfg.eval_env.id),
+            env=make_env(cfg.env.id, cfg.env.get("backend", "auto")),
+            eval_env=make_env(cfg.eval_env.id, cfg.eval_env.get("backend", "auto")),
             n_steps=cfg.n_steps,
             batch_size=cfg.batch_size,
             device=device,
@@ -215,10 +225,47 @@ def main(cfg: DictConfig) -> None:
             mad_k=cfg.surrogate.mad_k,
             beta_lr=cfg.surrogate.beta_lr,
         )
+    elif cfg.name == "crossq":
+        result = CrossQ(
+            env=make_env(cfg.env.id, cfg.env.get("backend", "auto")),
+            eval_env=make_env(cfg.eval_env.id, cfg.eval_env.get("backend", "auto")),
+            n_steps=cfg.n_steps,
+            batch_size=cfg.batch_size,
+            device=device,
+            gamma=cfg.rl.gamma,
+            tau=cfg.rl.tau,
+            learning_rate=cfg.rl.learning_rate,
+            qf_learning_rate=cfg.rl.qf_learning_rate,
+            ent_coef=cfg.rl.ent_coef,
+            gradient_steps=cfg.rl.gradient_steps,
+            policy_delay=cfg.rl.policy_delay,
+            warmup_steps=cfg.warmup.warmup_steps,
+            evaluate_episodes=cfg.evaluation.evaluate_episodes,
+            eval_interval=cfg.evaluation.eval_interval,
+            logger=logger,
+            debug=cfg.debug,
+        )
+    elif cfg.name == "sac":
+        result = SAC(
+            env=make_env(cfg.env.id, cfg.env.get("backend", "auto")),
+            eval_env=make_env(cfg.eval_env.id, cfg.eval_env.get("backend", "auto")),
+            n_steps=cfg.n_steps,
+            batch_size=cfg.batch_size,
+            device=device,
+            gamma=cfg.rl.gamma,
+            tau=cfg.rl.tau,
+            learning_rate=cfg.rl.learning_rate,
+            ent_coef=cfg.rl.ent_coef,
+            warmup_steps=cfg.warmup.warmup_steps,
+            evaluate_episodes=cfg.evaluation.evaluate_episodes,
+            eval_interval=cfg.evaluation.eval_interval,
+            logger=logger,
+            debug=cfg.debug,
+        )
     elif cfg.name == "ppo":
         result = PPO(
-            env=make_env(cfg.env.id),
-            eval_env=make_env(cfg.eval_env.id),
+            env=make_env(cfg.env.id, cfg.env.get("backend", "auto")),
+            eval_env=make_env(cfg.eval_env.id, cfg.eval_env.get("backend", "auto")),
             n_steps=cfg.n_steps,
             rollout_steps=cfg.buffer_size,
             batch_size=cfg.batch_size,

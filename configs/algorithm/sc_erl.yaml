@@ -36,7 +36,7 @@ surrogate:
   enabled: true
   omega: 0.549
   k: 1024
-  k_ensembles: 8
+  k_ensembles: 5
   mode: ensemble
   beta: 0.432
   dropout_p: 0.387
