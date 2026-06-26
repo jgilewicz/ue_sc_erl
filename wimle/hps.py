@@ -22,12 +22,12 @@ def define_train_parallel_flags() -> None:
 
     # Training loop
     flags.DEFINE_integer('max_steps', int(1000000), 'Total training steps.')
-    flags.DEFINE_integer('start_training', int(2500), 'Steps of random data before training.')
-    flags.DEFINE_integer('batch_size', 128, 'Mini-batch size.')
+    flags.DEFINE_integer('start_training', int(25000), 'Steps of random data before training.')
+    flags.DEFINE_integer('batch_size', 256, 'Mini-batch size.')
     flags.DEFINE_integer('replay_buffer_size', int(1000000), 'Replay buffer capacity.')
     flags.DEFINE_integer('updates_per_step', 10, 'Policy updates per env step.')
     flags.DEFINE_integer('model_updates_per_step', 10, 'Model updates per step (default: same as updates_per_step).')
-    flags.DEFINE_integer('eval_interval', 10000, 'Evaluate every N steps.')
+    flags.DEFINE_integer('eval_interval', 5000, 'Evaluate every N steps.')
     flags.DEFINE_integer('eval_episodes', 5, 'Episodes per evaluation.')
     flags.DEFINE_integer('save_freq', 50000, 'Save policy every N steps.')
 

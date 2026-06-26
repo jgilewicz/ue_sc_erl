@@ -94,6 +94,9 @@ python train_parallel.py \
     --seed="${SEED}" \
     --num_seeds="${NUM_SEEDS}" \
     --max_steps="${N_STEPS}" \
+    --batch_size=256 \
+    --start_training=25000 \
+    --eval_interval=5000 \
     --run_name="${RUN_NAME}" \
     --wandb_project="WIMLE" \
     --wandb_mode="offline" \
