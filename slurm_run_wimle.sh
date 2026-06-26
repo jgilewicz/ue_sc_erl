@@ -64,6 +64,7 @@ source /usr/local/sbin/modules.sh
 module load Python/3.12.3-GCCcore-13.3.0
 module load CUDA/12.6.0
 
+
 PROJECT_DIR="/home/jakgil6519/workspace/ue_sc_erl"
 WIMLE_DIR="${PROJECT_DIR}/wimle"
 
@@ -78,6 +79,9 @@ else
     echo "ERROR: ${WIMLE_DIR}/.venv does not exist! Please build the environment."
     exit 1
 fi
+
+CUDNN_PATH=$(python -c "import nvidia.cudnn; import os; print(os.path.dirname(nvidia.cudnn.__file__))")
+export LD_LIBRARY_PATH="${CUDNN_PATH}/lib:${LD_LIBRARY_PATH:-}"
 
 export WANDB_API_KEY="INSERT_YOUR_WANDB_API_KEY_HERE"
 export WANDB_MODE="offline"
