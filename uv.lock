@@ -246,7 +246,7 @@ wheels = [
 
 [[package]]
 name = "dm-control"
-version = "1.0.14"
+version = "1.0.43"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "absl-py", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -265,9 +265,9 @@ dependencies = [
     { name = "setuptools", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "tqdm", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/02/55f275ffbf63ce4cb5c2d5d0474aa47a706396be69919d880cb91aa00a55/dm_control-1.0.14.tar.gz", hash = "sha256:def1ece747b6f175c581150826b50f1a6134086dab34f8f3fd2d088ea035cf3d", size = 38993145, upload-time = "2023-07-20T12:03:25.012Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f0/eb/dcb0528623f58196522d74e7b2ec4a0cb5e890b9c5d28c7730de9e346d1a/dm_control-1.0.43.tar.gz", hash = "sha256:8f0e27246939cbafb3ca37d5a620056b77a95b5b8ba061b33a7aaca3d2185338", size = 56276100, upload-time = "2026-06-22T18:55:42.307Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2b/83/13d62168962d38ba70257d1fe13f8a4b0d259c9a17c44b73befda8461ef5/dm_control-1.0.14-py3-none-any.whl", hash = "sha256:883c63244a7ebf598700a97564ed19fffd3479ca79efd090aed881609cdb9fc6", size = 39291529, upload-time = "2023-07-20T12:03:16.063Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/50/4d9a4ea0ceb5c9399412834877fba79acb4438bac9c520a9cab57513a93b/dm_control-1.0.43-py3-none-any.whl", hash = "sha256:4d79532c44fb7660825b1c201d0172b14f0c8585a1f39f6cbc0181ee16e5f8e2", size = 56446782, upload-time = "2026-06-22T18:55:36.927Z" },
 ]
 
 [[package]]
@@ -1693,7 +1693,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dm-control", specifier = "==1.0.14" },
+    { name = "dm-control", specifier = ">=1.0.20" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "fpdf2", specifier = ">=2.8.7" },
     { name = "gymnasium", extras = ["mujoco"], specifier = ">=1.3.0" },
